@@ -1,6 +1,9 @@
-# Indian Portfolio Tracker
+# WealthLedger
 
-A simple, private, self-hosted way to keep track of your investments in one place.
+**Indian Portfolio Tracker**
+
+WealthLedger is a simple, private, self-hosted way to keep track of your
+investments in one place.
 
 Track stocks, mutual funds, NPS, PPF, PF, bank balances, physical gold, and real
 estate. See your total portfolio, net worth, allocation, XIRR, and full entry
@@ -171,7 +174,7 @@ build before creating an image, so a failed check stops the build.
 ## Support the project
 
 This project is free to use. If it has been useful to you and you would like to
-say thanks, you can support its development with UPI:
+say thanks, you can support WealthLedger's development with UPI:
 
 **UPI ID:** `vimaleshbe-4@okicici`
 
@@ -186,5 +189,5 @@ opening a public issue.
 
 ## Disclaimer
 
-This is a personal portfolio tracking tool, not financial advice. Always verify
-your own numbers before making investment decisions.
+WealthLedger is a personal portfolio tracking tool, not financial advice. Always
+verify your own numbers before making investment decisions.

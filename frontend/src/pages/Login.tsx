@@ -33,7 +33,7 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    document.title = "Sign in · Portfolio Tracker";
+    document.title = "Sign in · WealthLedger";
   }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -77,7 +77,7 @@ export default function Login() {
             Welcome back
           </h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            Sign in to view your portfolio
+            Sign in to your WealthLedger portfolio
           </p>
         </div>
 
@@ -197,7 +197,7 @@ export default function Login() {
 
         <div className="mt-6 flex items-center justify-center gap-2 text-center text-xs text-muted-foreground">
           <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-          <p>Private &amp; self-hosted — sessions end automatically.</p>
+          <p>WealthLedger — private &amp; self-hosted.</p>
         </div>
       </div>
     </div>

@@ -101,7 +101,7 @@ function Header() {
             <TrendingUp className="h-5 w-5" />
           </span>
           <span className="hidden flex-col leading-none sm:flex">
-            <span className="text-[15px] font-bold tracking-tight">Portfolio Tracker</span>
+            <span className="text-[15px] font-bold tracking-tight">WealthLedger</span>
             <span className="mt-1 hidden text-[11px] font-medium text-muted-foreground sm:block">
               Your wealth, in one place
             </span>
@@ -160,9 +160,9 @@ function App() {
                 ? "Edit Asset"
                 : pathname === "/login"
                   ? "Sign in"
-                  : "Portfolio Tracker";
+                  : "WealthLedger";
 
-    document.title = `${pageTitle} · Portfolio Tracker`;
+    document.title = `${pageTitle} · WealthLedger`;
   }, [pathname]);
 
   if (loading) {
@@ -205,7 +205,7 @@ function App() {
         <footer className="border-t border-border/60 bg-background/40">
           <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 py-6 text-xs text-muted-foreground sm:flex-row sm:px-6 lg:px-8">
             <p>Private &amp; self-hosted — your data never leaves your server.</p>
-            <p>© {new Date().getFullYear()} Portfolio Tracker</p>
+            <p>© {new Date().getFullYear()} WealthLedger</p>
           </div>
         </footer>
       </div>
