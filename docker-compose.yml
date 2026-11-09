@@ -1,0 +1,33 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:////app/data/app.db
+      - ENVIRONMENT=production
+      - AUTH_USERNAME=${AUTH_USERNAME:?set AUTH_USERNAME in .env}
+      - AUTH_PASSWORD=${AUTH_PASSWORD:?set AUTH_PASSWORD in .env}
+      - AUTH_SESSION_TTL_MINUTES=${AUTH_SESSION_TTL_MINUTES:-720}
+      - AUTH_SESSION_IDLE_MINUTES=${AUTH_SESSION_IDLE_MINUTES:-60}
+      - AUTH_MAX_LOGIN_ATTEMPTS=${AUTH_MAX_LOGIN_ATTEMPTS:-5}
+      - AUTH_LOGIN_WINDOW_SECONDS=${AUTH_LOGIN_WINDOW_SECONDS:-300}
+      - AUTH_COOKIE_SECURE=${AUTH_COOKIE_SECURE:-true}
+    volumes:
+      # Use the existing local SQLite database directly (no copy, no empty volume).
+      - ./backend/data:/app/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
