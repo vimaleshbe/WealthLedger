@@ -5,15 +5,17 @@
 WealthLedger is a simple, private, self-hosted way to keep track of your
 investments in one place.
 
-Track stocks, mutual funds, NPS, PPF, PF, bank balances, physical gold, and real
-estate. See your total portfolio, net worth, allocation, XIRR, and full entry
-history — without sending your financial data to a third-party service.
+Track stocks, mutual funds, NPS, PPF, PF, cash, bank balances, physical gold,
+and real estate. See your total portfolio, net worth, cash balance, allocation,
+XIRR, and full entry history — without sending your financial data to a
+third-party service.
 
 Everything runs on your own machine in a single Docker container.
 
 ## What you can do
 
-- Track stocks, mutual funds, NPS, PPF, PF, bank balances, gold, and real estate
+- Track stocks, mutual funds, NPS, PPF, PF, cash, bank balances, gold, and real estate
+- Add cash first, then use it to buy assets; sales are credited back to cash
 - Add dated entries for each investment and keep the full history
 - Search stocks and mutual funds by name or symbol
 - Sync the latest prices and NAVs automatically or with one click
@@ -76,11 +78,12 @@ Your data remains in `backend/data/app.db` between restarts and rebuilds.
 
 ## Everyday use
 
-- **Dashboard** — total portfolio, net worth, XIRR, allocation, and trend.
+- **Dashboard** — total portfolio, net worth, cash balance, XIRR, allocation, and trend.
 - **Assets** — add or edit stocks, mutual funds, PPF, PF, bank balances, gold,
   real estate, and more.
-- **Asset details** — add dated value/units entries and see the investment
-  history.
+- **Cash** — add or withdraw money. Purchases are paid from cash and sale
+  proceeds return to it automatically.
+- **Asset details** — buy, sell, and review the full transaction history.
 - **Transactions** — a single list of all entries, newest first.
 - **Sync** — refresh market prices and mutual fund NAVs from the header.
 

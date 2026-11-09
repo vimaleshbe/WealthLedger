@@ -3,10 +3,13 @@ export type AssetType =
   | "mutual_fund"
   | "nps"
   | "ppf"
+  | "cash"
   | "bank_balance"
   | "pf"
   | "physical_gold"
   | "real_estate";
+
+export type EntryType = "buy" | "sell" | "deposit" | "withdrawal";
 
 export type Category =
   | "equity"
@@ -34,6 +37,9 @@ export interface AssetEntry {
   date: string;
   value: number;
   units: number;
+  entry_type: EntryType;
+  affects_cash: boolean;
+  cash_value?: number | null;
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -54,6 +60,8 @@ export interface EntryCreate {
   date: string;
   value: number;
   units: number;
+  entry_type?: EntryType;
+  affects_cash?: boolean;
   notes?: string;
 }
 
@@ -65,6 +73,9 @@ export interface Transaction {
   date: string;
   value: number;
   units: number;
+  entry_type: EntryType;
+  affects_cash: boolean;
+  cash_value?: number | null;
   notes?: string;
 }
 
@@ -89,9 +100,28 @@ export interface DashboardSummary {
   total_value: number;
   portfolio_value: number;
   net_worth: number;
+  cash_value: number;
+  cash_asset_id: number | null;
   currency: string;
   asset_count: number;
   last_updated: string;
+}
+
+export interface CashSummary {
+  asset_id: number;
+  balance: number;
+  total_deposits: number;
+  total_withdrawals: number;
+  total_buys: number;
+  total_sells: number;
+  currency: string;
+  last_updated: string;
+}
+
+export interface CashMovementCreate {
+  date: string;
+  value: number;
+  notes?: string;
 }
 
 export interface AllocationItem {

@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlmodel import Session
 
+from app.core.entry_types import EntryType
 from app.db import engine
 from app.models import Asset, AssetEntry, MarketDataCache, PortfolioSnapshot
 
@@ -52,6 +53,9 @@ def restore_database(path: str = "portfolio_backup.json") -> None:
                 date=item["date"],
                 value=item["value"],
                 units=item["units"],
+                entry_type=EntryType(str(item.get("entry_type", "buy")).lower()),
+                affects_cash=item.get("affects_cash", False),
+                cash_value=item.get("cash_value"),
                 notes=item.get("notes"),
                 created_at=parse_datetime(item["created_at"]),
                 updated_at=parse_datetime(item["updated_at"]),

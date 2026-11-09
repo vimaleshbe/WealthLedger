@@ -6,6 +6,7 @@ class AssetType(str, Enum):
     MUTUAL_FUND = "mutual_fund"
     NPS = "nps"
     PPF = "ppf"
+    CASH = "cash"
     BANK_BALANCE = "bank_balance"
     PF = "pf"
     PHYSICAL_GOLD = "physical_gold"
@@ -26,6 +27,7 @@ ASSET_TYPE_CATEGORIES: dict[AssetType, Category] = {
     AssetType.MUTUAL_FUND: Category.EQUITY,
     AssetType.NPS: Category.RETIREMENT,
     AssetType.PPF: Category.RETIREMENT,
+    AssetType.CASH: Category.CASH,
     AssetType.BANK_BALANCE: Category.CASH,
     AssetType.PF: Category.RETIREMENT,
     AssetType.PHYSICAL_GOLD: Category.COMMODITIES,

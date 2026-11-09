@@ -3,13 +3,15 @@ from collections import defaultdict
 from sqlmodel import Session, select
 
 from app.models import AssetEntry, PortfolioSnapshot
+from app.services.cash import entry_net_worth_effect
 
 
 def recalculate_snapshots(session: Session) -> None:
     """Rebuild portfolio snapshots from asset entries.
 
-    Each snapshot reflects the cumulative value of all entries up to and
-    including that date, summing multiple entries (SIPs) per asset.
+    Each snapshot reflects the cumulative net-worth effect of every entry up
+    to and including that date. Purchases paid from cash leave net worth
+    unchanged, while deposits and realised gains increase it.
     """
     session.exec(PortfolioSnapshot.__table__.delete())
 
@@ -17,18 +19,15 @@ def recalculate_snapshots(session: Session) -> None:
         select(AssetEntry).order_by(AssetEntry.asset_id, AssetEntry.date)
     ).all()
 
-    # Cumulative value per asset as we walk forward in time.
-    asset_values: dict[int, float] = defaultdict(float)
-    date_events: dict[str, list[tuple[int, float]]] = defaultdict(list)
-
+    date_events: dict[str, float] = defaultdict(float)
     for entry in entries:
-        date_events[entry.date].append((entry.asset_id, entry.value))
+        date_events[entry.date] += entry_net_worth_effect(entry)
 
     snapshots: dict[str, float] = {}
+    running_total = 0.0
     for snapshot_date in sorted(date_events.keys()):
-        for asset_id, value in date_events[snapshot_date]:
-            asset_values[asset_id] += value
-        snapshots[snapshot_date] = sum(asset_values.values())
+        running_total += date_events[snapshot_date]
+        snapshots[snapshot_date] = running_total
 
     for snapshot_date, total in sorted(snapshots.items()):
         session.add(PortfolioSnapshot(date=snapshot_date, total_value=total))

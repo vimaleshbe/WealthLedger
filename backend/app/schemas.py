@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.asset_types import AssetType, Category
+from app.core.entry_types import EntryType
 
 
 class AssetBase(BaseModel):
@@ -34,8 +35,10 @@ class AssetRead(AssetBase):
 
 class AssetEntryBase(BaseModel):
     date: str
-    value: float = Field(..., gt=0)
+    value: float = Field(..., ge=0)
     units: float = Field(..., gt=0)
+    entry_type: EntryType = EntryType.BUY
+    affects_cash: bool = False
     notes: str | None = None
 
 
@@ -52,14 +55,34 @@ class AssetEntryRead(AssetEntryBase):
 
     id: int
     asset_id: int
+    cash_value: float | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class CashMovementCreate(BaseModel):
+    date: str
+    value: float = Field(..., gt=0)
+    notes: str | None = None
+
+
+class CashSummary(BaseModel):
+    asset_id: int
+    balance: float
+    total_deposits: float
+    total_withdrawals: float
+    total_buys: float
+    total_sells: float
+    currency: str = "INR"
+    last_updated: datetime
 
 
 class PortfolioSummary(BaseModel):
     total_value: float
     portfolio_value: float
     net_worth: float
+    cash_value: float
+    cash_asset_id: int | None = None
     currency: str = "INR"
     asset_count: int
     last_updated: datetime

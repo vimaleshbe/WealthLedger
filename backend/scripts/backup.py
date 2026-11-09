@@ -1,6 +1,7 @@
 import json
 import sys
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 
 # Make app importable when running from scripts/ directory
@@ -15,6 +16,8 @@ from app.models import Asset, AssetEntry, MarketDataCache, PortfolioSnapshot
 def serialize(obj):
     if isinstance(obj, datetime):
         return obj.isoformat()
+    if isinstance(obj, Enum):
+        return obj.value
     raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
 

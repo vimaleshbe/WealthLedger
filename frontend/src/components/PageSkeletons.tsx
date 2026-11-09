@@ -8,8 +8,8 @@ export function DashboardSkeleton() {
         <Skeleton className="h-4 w-80 max-w-full" />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {[0, 1, 2].map((key) => (
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[0, 1, 2, 3].map((key) => (
           <div
             key={key}
             className="rounded-xl border border-border/70 bg-card p-5 shadow-sm sm:p-6"

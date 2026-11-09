@@ -6,6 +6,7 @@ import {
   ArrowLeftRight,
   LogOut,
   TrendingUp,
+  Banknote,
 } from "lucide-react";
 import NavLink from "./components/NavLink";
 import SyncButton from "./components/SyncButton";
@@ -19,6 +20,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const AssetList = lazy(() => import("./pages/AssetList"));
 const AssetFormPage = lazy(() => import("./pages/AssetFormPage"));
 const AssetView = lazy(() => import("./pages/AssetView"));
+const Cash = lazy(() => import("./pages/Cash"));
 const Transactions = lazy(() => import("./pages/Transactions"));
 
 function RouteProgress() {
@@ -118,6 +120,10 @@ function Header() {
               <Wallet className="h-4 w-4" />
               <span className="hidden sm:inline">Assets</span>
             </NavLink>
+            <NavLink to="/cash">
+              <Banknote className="h-4 w-4" />
+              <span className="hidden sm:inline">Cash</span>
+            </NavLink>
             <NavLink to="/transactions">
               <ArrowLeftRight className="h-4 w-4" />
               <span className="hidden sm:inline">Transactions</span>
@@ -150,8 +156,10 @@ function App() {
       ? "Dashboard"
       : pathname === "/assets"
         ? "Assets"
-        : pathname === "/transactions"
-          ? "Transactions"
+        : pathname === "/cash"
+          ? "Cash"
+          : pathname === "/transactions"
+            ? "Transactions"
           : pathname === "/assets/new"
             ? "Add Asset"
             : /^\/assets\/\d+$/.test(pathname)
@@ -192,6 +200,7 @@ function App() {
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/login" element={<Navigate to="/" replace />} />
                   <Route path="/transactions" element={<Transactions />} />
+                  <Route path="/cash" element={<Cash />} />
                   <Route path="/assets" element={<AssetList />} />
                   <Route path="/assets/new" element={<AssetFormPage />} />
                   <Route path="/assets/:id" element={<AssetView />} />

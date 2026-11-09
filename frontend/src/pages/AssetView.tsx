@@ -12,6 +12,8 @@ import {
   Tag,
   StickyNote,
   Hash,
+  ArrowDownLeft,
+  ArrowUpRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -30,8 +32,13 @@ import {
   useUpdateEntry,
   useDeleteEntry,
 } from "../api/assets";
+import { useCashSummary, useDepositCash, useWithdrawCash } from "../api/cash";
 import { useToast } from "../components/ui/toast";
-import { getAssetTypeLabel, getCategoryForAssetType } from "../lib/assetTypes";
+import {
+  ENTRY_TYPE_LABELS,
+  getAssetTypeLabel,
+  getCategoryForAssetType,
+} from "../lib/assetTypes";
 import { categoryBadgeClass, formatCategory } from "../lib/categories";
 import {
   cn,
@@ -39,7 +46,7 @@ import {
   formatDate,
   formatNumber,
 } from "../lib/utils";
-import type { AssetEntry, EntryCreate } from "../types";
+import type { AssetEntry, EntryCreate, EntryType } from "../types";
 
 export default function AssetView() {
   const { id } = useParams<{ id?: string }>();
@@ -59,9 +66,13 @@ export default function AssetView() {
   const createEntry = useCreateEntry(assetId ?? 0);
   const updateEntry = useUpdateEntry(assetId ?? 0);
   const deleteEntry = useDeleteEntry(assetId ?? 0);
+  const depositCash = useDepositCash();
+  const withdrawCash = useWithdrawCash();
+  const isCash = asset?.asset_type === "cash";
+  const { data: cashSummary } = useCashSummary();
 
   const [editingEntry, setEditingEntry] = useState<AssetEntry | null>(null);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newEntryKind, setNewEntryKind] = useState<EntryType | null>(null);
   const [deleteEntryId, setDeleteEntryId] = useState<number | null>(null);
 
   const sortedEntries = entries
@@ -83,16 +94,41 @@ export default function AssetView() {
             showError(err.message || "Failed to update entry"),
         },
       );
-    } else {
-      createEntry.mutate(data, {
-        onSuccess: () => {
-          setIsAddModalOpen(false);
-          success("Entry added successfully");
-        },
-        onError: (err: Error) =>
-          showError(err.message || "Failed to add entry"),
-      });
+      return;
     }
+
+    if (data.entry_type === "deposit" || data.entry_type === "withdrawal") {
+      const mutation =
+        data.entry_type === "deposit" ? depositCash : withdrawCash;
+      mutation.mutate(
+        { date: data.date, value: data.value, notes: data.notes },
+        {
+          onSuccess: () => {
+            setNewEntryKind(null);
+            success(
+              data.entry_type === "deposit"
+                ? "Cash added successfully."
+                : "Cash withdrawn successfully.",
+            );
+          },
+          onError: (err: Error) =>
+            showError(err.message || "Failed to update cash"),
+        },
+      );
+      return;
+    }
+
+    createEntry.mutate(data, {
+      onSuccess: () => {
+        setNewEntryKind(null);
+        success(
+          data.entry_type === "sell"
+            ? "Sale recorded. Proceeds added to cash."
+            : "Purchase recorded. Cash updated.",
+        );
+      },
+      onError: (err: Error) => showError(err.message || "Failed to add entry"),
+    });
   };
 
   const confirmDeleteEntry = () => {
@@ -123,22 +159,59 @@ export default function AssetView() {
         variant="ghost"
         size="sm"
         className="-ml-2 w-fit text-muted-foreground"
-        onClick={() => navigate("/assets")}
+        onClick={() => navigate(isCash ? "/" : "/assets")}
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to assets
+        {isCash ? "Back to dashboard" : "Back to assets"}
       </Button>
 
       <PageHeader
         title={asset.name}
-        description="Holdings, valuation and full transaction history."
+        description={
+          isCash
+            ? "Money available for purchases. Sale proceeds are credited here automatically."
+            : "Holdings, valuation and full transaction history."
+        }
       >
-        <Link to={`/assets/${asset.id}/edit`}>
-          <Button variant="outline">
-            <Pencil className="h-4 w-4" />
-            Edit Asset
-          </Button>
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {!isCash && (
+            <Link to={`/assets/${asset.id}/edit`}>
+              <Button variant="outline">
+                <Pencil className="h-4 w-4" />
+                Edit Asset
+              </Button>
+            </Link>
+          )}
+          {isCash ? (
+            <>
+              <Button onClick={() => setNewEntryKind("deposit")}>
+                <Plus className="h-4 w-4" />
+                Add Cash
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setNewEntryKind("withdrawal")}
+              >
+                <ArrowUpRight className="h-4 w-4" />
+                Withdraw
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button onClick={() => setNewEntryKind("buy")}>
+                <Plus className="h-4 w-4" />
+                Buy
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setNewEntryKind("sell")}
+              >
+                <ArrowDownLeft className="h-4 w-4" />
+                Sell
+              </Button>
+            </>
+          )}
+        </div>
       </PageHeader>
 
       <Card className="relative overflow-hidden border-border/70">
@@ -147,17 +220,27 @@ export default function AssetView() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                Current Value
+                {isCash ? "Cash Balance" : "Current Value"}
               </p>
               {valuationLoading ? (
                 <Skeleton className="mt-2 h-9 w-48" />
               ) : (
                 <p className="mt-1.5 text-3xl font-bold tracking-tight">
-                  {formatCurrency(valuation?.current_value ?? 0)}
+                  {formatCurrency(
+                    isCash
+                      ? (cashSummary?.balance ?? valuation?.current_value ?? 0)
+                      : (valuation?.current_value ?? 0),
+                  )}
                 </p>
               )}
               <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                {valuationLoading ? (
+                {isCash ? (
+                  <span className="text-xs text-muted-foreground">
+                    {cashSummary
+                      ? `${formatCurrency(cashSummary.total_sells)} received from sales so far`
+                      : "Available for purchases"}
+                  </span>
+                ) : valuationLoading ? (
                   <Skeleton className="h-6 w-40 rounded-full" />
                 ) : (
                   <>
@@ -200,51 +283,88 @@ export default function AssetView() {
             </Badge>
           </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-4 border-t border-border/60 pt-5 sm:grid-cols-3">
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Invested
-              </p>
-              <p className="mt-1 text-base font-semibold tabular-nums">
-                {valuationLoading ? (
-                  <Skeleton className="h-5 w-24" />
-                ) : (
-                  formatCurrency(valuation?.invested_value ?? 0)
-                )}
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Total Units
-              </p>
-              <p className="mt-1 text-base font-semibold tabular-nums">
-                {valuationLoading ? (
-                  <Skeleton className="h-5 w-20" />
-                ) : (
-                  formatNumber(valuation?.total_units ?? 0, 3)
-                )}
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Latest Price
-              </p>
-              <p className="mt-1 text-base font-semibold tabular-nums">
-                {valuationLoading ? (
-                  <Skeleton className="h-5 w-24" />
-                ) : valuation?.latest_price ? (
-                  formatCurrency(valuation.latest_price)
-                ) : (
-                  "—"
-                )}
-              </p>
-              {valuation?.price_source && (
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  {valuation.price_source}
+          {isCash ? (
+            <div className="mt-6 grid grid-cols-2 gap-4 border-t border-border/60 pt-5 sm:grid-cols-4">
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Total Added
                 </p>
-              )}
+                <p className="mt-1 text-base font-semibold tabular-nums">
+                  {formatCurrency(cashSummary?.total_deposits ?? 0)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Withdrawn
+                </p>
+                <p className="mt-1 text-base font-semibold tabular-nums">
+                  {formatCurrency(cashSummary?.total_withdrawals ?? 0)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  From Sales
+                </p>
+                <p className="mt-1 text-base font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                  {formatCurrency(cashSummary?.total_sells ?? 0)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Spent on Buys
+                </p>
+                <p className="mt-1 text-base font-semibold tabular-nums text-rose-600 dark:text-rose-400">
+                  {formatCurrency(cashSummary?.total_buys ?? 0)}
+                </p>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="mt-6 grid grid-cols-2 gap-4 border-t border-border/60 pt-5 sm:grid-cols-3">
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Invested
+                </p>
+                <p className="mt-1 text-base font-semibold tabular-nums">
+                  {valuationLoading ? (
+                    <Skeleton className="h-5 w-24" />
+                  ) : (
+                    formatCurrency(valuation?.invested_value ?? 0)
+                  )}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Total Units
+                </p>
+                <p className="mt-1 text-base font-semibold tabular-nums">
+                  {valuationLoading ? (
+                    <Skeleton className="h-5 w-20" />
+                  ) : (
+                    formatNumber(valuation?.total_units ?? 0, 3)
+                  )}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Latest Price
+                </p>
+                <p className="mt-1 text-base font-semibold tabular-nums">
+                  {valuationLoading ? (
+                    <Skeleton className="h-5 w-24" />
+                  ) : valuation?.latest_price ? (
+                    formatCurrency(valuation.latest_price)
+                  ) : (
+                    "—"
+                  )}
+                </p>
+                {valuation?.price_source && (
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    {valuation.price_source}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -326,15 +446,21 @@ export default function AssetView() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <div>
-            <CardTitle className="text-lg">History</CardTitle>
+            <CardTitle className="text-lg">
+              {isCash ? "Cash activity" : "History"}
+            </CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">
               {sortedEntries.length}{" "}
               {sortedEntries.length === 1 ? "entry" : "entries"} recorded
+              {isCash && " · Buys and sales appear in Transactions"}
             </p>
           </div>
-          <Button size="sm" onClick={() => setIsAddModalOpen(true)}>
+          <Button
+            size="sm"
+            onClick={() => setNewEntryKind(isCash ? "deposit" : "buy")}
+          >
             <Plus className="h-4 w-4" />
-            Add Entry
+            {isCash ? "Add Cash" : "Buy"}
           </Button>
         </CardHeader>
         <CardContent>
@@ -348,75 +474,144 @@ export default function AssetView() {
             <div className="rounded-lg border border-dashed border-border/80 py-10 text-center">
               <CalendarDays className="mx-auto h-8 w-8 text-muted-foreground/60" />
               <p className="mt-3 text-sm text-muted-foreground">
-                No entries yet. Add the first purchase to start tracking.
+                {isCash
+                  ? "No cash movements yet. Add money to start buying assets."
+                  : "No entries yet. Record the first purchase to start tracking."}
               </p>
               <Button
                 className="mt-4"
                 size="sm"
-                onClick={() => setIsAddModalOpen(true)}
+                onClick={() => setNewEntryKind(isCash ? "deposit" : "buy")}
               >
                 <Plus className="h-4 w-4" />
-                Add First Entry
+                {isCash ? "Add Cash" : "Buy Asset"}
               </Button>
             </div>
           ) : (
             <ol className="space-y-0">
-              {sortedEntries.map((entry, index) => (
-                <li key={entry.id} className="group flex gap-3">
-                  <div className="flex flex-col items-center pt-2">
-                    <span className="h-2.5 w-2.5 shrink-0 rounded-full border-2 border-primary bg-background" />
-                    {index < sortedEntries.length - 1 && (
-                      <span className="mt-1 w-px flex-1 bg-border" />
-                    )}
-                  </div>
-                  <div className="mb-2 flex flex-1 flex-col gap-2 rounded-lg border border-transparent px-2 py-2 transition-colors hover:border-border/70 hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold tabular-nums">
-                        {formatCurrency(entry.value)}
-                      </p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {formatDate(entry.date)} ·{" "}
-                        {formatNumber(entry.units, 3)} units
-                        {entry.notes ? ` · ${entry.notes}` : ""}
-                      </p>
+              {sortedEntries.map((entry, index) => {
+                const isSellEntry = entry.entry_type === "sell";
+                const isCashIn =
+                  entry.entry_type === "sell" || entry.entry_type === "deposit";
+                const amount = isSellEntry
+                  ? (entry.cash_value ?? entry.value)
+                  : entry.value;
+                return (
+                  <li key={entry.id} className="group flex gap-3">
+                    <div className="flex flex-col items-center pt-2">
+                      <span
+                        className={cn(
+                          "h-2.5 w-2.5 shrink-0 rounded-full border-2 bg-background",
+                          isCashIn
+                            ? "border-emerald-500"
+                            : "border-primary",
+                        )}
+                      />
+                      {index < sortedEntries.length - 1 && (
+                        <span className="mt-1 w-px flex-1 bg-border" />
+                      )}
                     </div>
-                    <div className="flex shrink-0 gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => setEditingEntry(entry)}
-                        aria-label="Edit entry"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        onClick={() => setDeleteEntryId(entry.id)}
-                        aria-label="Delete entry"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                    <div className="mb-2 flex flex-1 flex-col gap-2 rounded-lg border border-transparent px-2 py-2 transition-colors hover:border-border/70 hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p
+                            className={cn(
+                              "text-sm font-semibold tabular-nums",
+                              isCashIn
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-foreground",
+                            )}
+                          >
+                            {entry.entry_type === "deposit" ||
+                            entry.entry_type === "sell"
+                              ? "+"
+                              : entry.entry_type === "withdrawal"
+                                ? "−"
+                                : ""}
+                            {formatCurrency(amount)}
+                          </p>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-[10px]",
+                              isCashIn
+                                ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                                : "border-primary/30 text-primary",
+                            )}
+                          >
+                            {ENTRY_TYPE_LABELS[entry.entry_type]}
+                          </Badge>
+                        </div>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {formatDate(entry.date)}
+                          {!isCash &&
+                            ` · ${formatNumber(entry.units, 3)} units`}
+                          {entry.notes ? ` · ${entry.notes}` : ""}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setEditingEntry(entry)}
+                          aria-label="Edit entry"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => setDeleteEntryId(entry.id)}
+                          aria-label="Delete entry"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ol>
           )}
         </CardContent>
       </Card>
 
       <Dialog
-        open={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        title="Add Entry"
-        description="Record a purchase or contribution."
+        open={newEntryKind !== null}
+        onClose={() => setNewEntryKind(null)}
+        title={
+          newEntryKind === "sell"
+            ? "Sell Asset"
+            : newEntryKind === "deposit"
+              ? "Add Cash"
+              : newEntryKind === "withdrawal"
+                ? "Withdraw Cash"
+                : "Buy Asset"
+        }
+        description={
+          newEntryKind === "sell"
+            ? "Record a sale. The proceeds move into cash."
+            : newEntryKind === "deposit"
+              ? "Move money into your cash balance."
+              : newEntryKind === "withdrawal"
+                ? "Move money out of your cash balance."
+                : "Record a purchase. The amount is paid from cash."
+        }
       >
         <EntryForm
+          kind={newEntryKind ?? "buy"}
+          availableUnits={
+            newEntryKind === "sell" ? valuation?.total_units : undefined
+          }
+          availableCash={
+            newEntryKind === "buy" || newEntryKind === "withdrawal"
+              ? cashSummary?.balance
+              : undefined
+          }
           onSubmit={handleEntrySubmit}
-          onCancel={() => setIsAddModalOpen(false)}
+          onCancel={() => setNewEntryKind(null)}
         />
       </Dialog>
 
@@ -430,6 +625,13 @@ export default function AssetView() {
           <EntryForm
             key={editingEntry.id}
             initial={editingEntry}
+            kind={editingEntry.entry_type}
+            availableUnits={
+              editingEntry.entry_type === "sell"
+                ? (valuation?.total_units ?? 0) + editingEntry.units
+                : undefined
+            }
+            isEditing
             onSubmit={handleEntrySubmit}
             onCancel={() => setEditingEntry(null)}
           />

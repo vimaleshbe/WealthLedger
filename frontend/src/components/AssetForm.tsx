@@ -262,8 +262,8 @@ export default function AssetForm({ initial, onSubmit, onCancel }: AssetFormProp
               </p>
               <p className="text-xs text-muted-foreground">
                 {assetType === REAL_ESTATE_TYPE
-                  ? "Add the purchase cost so valuation starts correctly."
-                  : "Optional — you can add purchases later from the asset page."}
+                  ? "Add the purchase cost so valuation starts correctly. This amount is paid from cash."
+                  : "Optional — the amount is paid from your cash balance. Add cash first if needed."}
               </p>
             </div>
           </div>

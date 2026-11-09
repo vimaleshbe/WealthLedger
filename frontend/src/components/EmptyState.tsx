@@ -1,4 +1,4 @@
-import { Wallet, Plus, Sparkles } from "lucide-react";
+import { Wallet, Plus, Sparkles, Banknote } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "./ui/button";
 
@@ -13,14 +13,20 @@ export default function EmptyState() {
         Welcome to your portfolio
       </h2>
       <p className="relative mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-        You haven&apos;t added any assets yet. Add your first stock, mutual fund,
-        PPF, gold or property to start tracking your net worth.
+        Start by adding money to cash. Then buy stocks, mutual funds, PPF, gold
+        or property — purchases are paid from cash and sales return to it.
       </p>
       <div className="relative mt-6 flex flex-wrap items-center justify-center gap-2">
-        <Link to="/assets">
+        <Link to="/cash">
           <Button size="lg">
+            <Banknote className="h-4 w-4" />
+            Add cash first
+          </Button>
+        </Link>
+        <Link to="/assets">
+          <Button size="lg" variant="outline">
             <Plus className="h-4 w-4" />
-            Add your first asset
+            Add an asset
           </Button>
         </Link>
         <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background/60 px-3 py-1.5 text-xs text-muted-foreground">

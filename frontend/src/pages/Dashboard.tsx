@@ -3,6 +3,7 @@ import PageHeader from "../components/PageHeader";
 import ErrorState from "../components/ErrorState";
 import TotalValueCard from "../components/TotalValueCard";
 import NetWorthCard from "../components/NetWorthCard";
+import CashCard from "../components/CashCard";
 import AllocationChart from "../components/AllocationChart";
 import TrendChart from "../components/TrendChart";
 import EmptyState from "../components/EmptyState";
@@ -37,7 +38,7 @@ export default function Dashboard() {
     return <ErrorState onRetry={refetchSummary} />;
   }
 
-  if (!summary || summary.asset_count === 0) {
+  if (!summary || (summary.asset_count === 0 && summary.cash_value === 0)) {
     return (
       <div className="space-y-6">
         <PageHeader
@@ -61,12 +62,16 @@ export default function Dashboard() {
         </Badge>
       </PageHeader>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <TotalValueCard
           portfolioValue={summary.portfolio_value}
           assetCount={summary.asset_count}
         />
         <NetWorthCard netWorth={summary.net_worth} />
+        <CashCard
+          cashValue={summary.cash_value}
+          cashAssetId={summary.cash_asset_id}
+        />
         {xirrLoading ? (
           <Skeleton className="h-[148px] rounded-xl" />
         ) : (

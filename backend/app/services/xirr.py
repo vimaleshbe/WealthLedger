@@ -2,6 +2,7 @@ from datetime import date, datetime
 
 from sqlmodel import Session, select
 
+from app.core.entry_types import EntryType
 from app.models import Asset, AssetEntry, MarketDataCache
 
 
@@ -87,12 +88,29 @@ def get_portfolio_xirr(session: Session) -> float | None:
 
         for entry in entries:
             entry_date = datetime.strptime(entry.date, "%Y-%m-%d").date()
-            # Investment is an outflow
-            cashflows.append((entry_date, -entry.value))
+            if entry.entry_type == EntryType.SELL:
+                # Sale proceeds are an inflow back into the portfolio
+                cash_value = (
+                    entry.cash_value if entry.cash_value is not None else entry.value
+                )
+                cashflows.append((entry_date, cash_value))
+            else:
+                # Investment is an outflow
+                cashflows.append((entry_date, -entry.value))
 
         # Current value is an inflow as of today
-        invested_value = sum(entry.value for entry in entries)
-        total_units = sum(entry.units for entry in entries)
+        invested_value = 0.0
+        total_units = 0.0
+        for entry in entries:
+            if entry.entry_type == EntryType.BUY:
+                invested_value += entry.value
+                total_units += entry.units
+            elif entry.entry_type == EntryType.SELL:
+                invested_value -= entry.value
+                total_units -= entry.units
+
+        invested_value = max(invested_value, 0.0)
+        total_units = max(total_units, 0.0)
 
         cache = None
         if asset.symbol:

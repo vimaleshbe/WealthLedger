@@ -1,5 +1,5 @@
 import { Select } from "./ui/select";
-import { ASSET_TYPES } from "../lib/assetTypes";
+import { SELECTABLE_ASSET_TYPES } from "../lib/assetTypes";
 import type { AssetType } from "../types";
 
 interface AssetTypeSelectProps {
@@ -13,7 +13,7 @@ export default function AssetTypeSelect({ value, onChange }: AssetTypeSelectProp
       value={value}
       onChange={(e) => onChange(e.target.value as AssetType)}
     >
-      {ASSET_TYPES.map((type) => (
+      {SELECTABLE_ASSET_TYPES.map((type) => (
         <option key={type.value} value={type.value}>
           {type.label}
         </option>

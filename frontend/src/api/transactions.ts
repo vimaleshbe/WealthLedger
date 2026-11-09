@@ -20,7 +20,7 @@ export function useTransactions() {
       );
       const allTransactions = entriesByAsset.flat();
       return allTransactions.sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        (a, b) => b.date.localeCompare(a.date) || b.id - a.id,
       );
     },
   });

@@ -6,6 +6,7 @@ import {
   ArrowLeftRight,
   TrendingUp,
   X,
+  Banknote,
 } from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import ErrorState from "../components/ErrorState";
@@ -14,14 +15,32 @@ import { Card, CardContent } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Input } from "../components/ui/input";
 import { useTransactions } from "../api/transactions";
-import { getAssetTypeLabel, getCategoryForAssetType } from "../lib/assetTypes";
-import { categoryBadgeClass } from "../lib/categories";
 import {
+  ENTRY_TYPE_LABELS,
+  getAssetTypeLabel,
+  isCashEntry,
+} from "../lib/assetTypes";
+import {
+  cn,
   formatCompactCurrency,
   formatCurrency,
   formatDate,
   formatNumber,
 } from "../lib/utils";
+import type { EntryType } from "../types";
+
+function entryBadgeClass(type: EntryType): string {
+  switch (type) {
+    case "sell":
+      return "border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300";
+    case "deposit":
+      return "border-transparent bg-teal-100 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300";
+    case "withdrawal":
+      return "border-transparent bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300";
+    default:
+      return "border-transparent bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300";
+  }
+}
 
 export default function Transactions() {
   const { data: transactions, isLoading, error, refetch } = useTransactions();
@@ -34,22 +53,31 @@ export default function Transactions() {
       (txn) =>
         txn.asset_name.toLowerCase().includes(q) ||
         getAssetTypeLabel(txn.asset_type).toLowerCase().includes(q) ||
+        ENTRY_TYPE_LABELS[txn.entry_type].toLowerCase().includes(q) ||
         txn.date.includes(q),
     );
   }, [transactions, query]);
 
   const totalInvested = useMemo(
-    () => (transactions ?? []).reduce((sum, txn) => sum + txn.value, 0),
+    () =>
+      (transactions ?? []).reduce(
+        (sum, txn) => sum + (txn.entry_type === "buy" ? txn.value : 0),
+        0,
+      ),
     [transactions],
   );
 
-  const latestDate = useMemo(() => {
-    if (!transactions?.length) return null;
-    return transactions.reduce(
-      (latest, txn) => (txn.date > latest ? txn.date : latest),
-      transactions[0].date,
-    );
-  }, [transactions]);
+  const totalCashIn = useMemo(
+    () =>
+      (transactions ?? []).reduce((sum, txn) => {
+        if (txn.entry_type === "deposit") return sum + txn.value;
+        if (txn.entry_type === "sell") {
+          return sum + (txn.cash_value ?? txn.value);
+        }
+        return sum;
+      }, 0),
+    [transactions],
+  );
 
   if (isLoading) return <TransactionsSkeleton />;
   if (error) return <ErrorState onRetry={refetch} />;
@@ -58,7 +86,7 @@ export default function Transactions() {
     <div className="space-y-6">
       <PageHeader
         title="Transactions"
-        description="Every investment entry across your portfolio, newest first."
+        description="Every buy, sell and cash movement across your portfolio, newest first."
       >
         <Badge variant="outline" className="py-1">
           {transactions?.length ?? 0} entries
@@ -72,8 +100,8 @@ export default function Transactions() {
           </span>
           <h2 className="mt-4 text-lg font-semibold">No transactions yet</h2>
           <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-            Add entries from an asset&apos;s detail page and they will show up
-            here.
+            Record a buy, sell or cash deposit from an asset&apos;s page and it
+            will show up here.
           </p>
         </div>
       ) : (
@@ -113,15 +141,15 @@ export default function Transactions() {
 
             <Card>
               <CardContent className="flex items-center gap-3 p-5">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                  <CalendarDays className="h-5 w-5" />
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400">
+                  <Banknote className="h-5 w-5" />
                 </span>
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    Latest Entry
+                    Cash In
                   </p>
-                  <p className="text-lg font-bold">
-                    {latestDate ? formatDate(latestDate) : "—"}
+                  <p className="text-lg font-bold tabular-nums">
+                    {formatCompactCurrency(totalCashIn)}
                   </p>
                 </div>
               </CardContent>
@@ -173,7 +201,9 @@ export default function Transactions() {
                     <tr className="border-b border-border/60 bg-muted/40 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
                       <th className="px-4 py-3 font-semibold sm:px-5">Date</th>
                       <th className="px-4 py-3 font-semibold sm:px-5">Asset</th>
-                      <th className="px-4 py-3 font-semibold sm:px-5">Type</th>
+                      <th className="px-4 py-3 font-semibold sm:px-5">
+                        Activity
+                      </th>
                       <th className="px-4 py-3 text-right font-semibold sm:px-5">
                         Units
                       </th>
@@ -184,7 +214,14 @@ export default function Transactions() {
                   </thead>
                   <tbody className="divide-y divide-border/60">
                     {filtered.map((txn) => {
-                      const category = getCategoryForAssetType(txn.asset_type);
+                      const cashEntry = isCashEntry(txn.entry_type);
+                      const amount =
+                        txn.entry_type === "sell"
+                          ? (txn.cash_value ?? txn.value)
+                          : txn.value;
+                      const isCashIn =
+                        txn.entry_type === "sell" ||
+                        txn.entry_type === "deposit";
                       return (
                         <tr
                           key={`${txn.asset_id}-${txn.id}`}
@@ -198,7 +235,7 @@ export default function Transactions() {
                               <div>
                                 <p className="font-medium">{formatDate(txn.date)}</p>
                                 <p className="text-[11px] text-muted-foreground">
-                                  {txn.notes || "Entry"}
+                                  {txn.notes || ENTRY_TYPE_LABELS[txn.entry_type]}
                                 </p>
                               </div>
                             </div>
@@ -206,21 +243,39 @@ export default function Transactions() {
                           <td className="px-4 py-3.5 sm:px-5">
                             <div className="flex items-center gap-2">
                               <Wallet className="h-4 w-4 shrink-0 text-muted-foreground" />
-                              <span className="max-w-[280px] truncate font-medium">
-                                {txn.asset_name}
-                              </span>
+                              <div>
+                                <p className="max-w-[280px] truncate font-medium">
+                                  {txn.asset_name}
+                                </p>
+                                <p className="text-[11px] text-muted-foreground">
+                                  {getAssetTypeLabel(txn.asset_type)}
+                                </p>
+                              </div>
                             </div>
                           </td>
                           <td className="whitespace-nowrap px-4 py-3.5 sm:px-5">
-                            <Badge className={categoryBadgeClass(category)}>
-                              {getAssetTypeLabel(txn.asset_type)}
+                            <Badge className={entryBadgeClass(txn.entry_type)}>
+                              {ENTRY_TYPE_LABELS[txn.entry_type]}
                             </Badge>
                           </td>
                           <td className="whitespace-nowrap px-4 py-3.5 text-right tabular-nums text-muted-foreground sm:px-5">
-                            {formatNumber(txn.units, 3)}
+                            {cashEntry ? "—" : formatNumber(txn.units, 3)}
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3.5 text-right font-semibold tabular-nums sm:px-5">
-                            {formatCurrency(txn.value)}
+                          <td
+                            className={cn(
+                              "whitespace-nowrap px-4 py-3.5 text-right font-semibold tabular-nums sm:px-5",
+                              isCashIn && "text-emerald-600 dark:text-emerald-400",
+                              txn.entry_type === "withdrawal" &&
+                                "text-rose-600 dark:text-rose-400",
+                            )}
+                          >
+                            {txn.entry_type === "sell" ||
+                            txn.entry_type === "deposit"
+                              ? "+"
+                              : txn.entry_type === "withdrawal"
+                                ? "−"
+                                : ""}
+                            {formatCurrency(amount)}
                           </td>
                         </tr>
                       );

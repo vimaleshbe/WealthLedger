@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from app.api.entries import _upsert_entry
-from app.core.asset_types import get_category
+from app.core.asset_types import AssetType, get_category
+from app.core.entry_types import EntryType
 from app.db import get_session
 from app.models import Asset, AssetEntry, MarketDataCache
 from app.schemas import (
@@ -12,6 +13,14 @@ from app.schemas import (
     AssetUpdate,
     AssetValuation,
 )
+from app.services.cash import (
+    get_asset_invested_value,
+    get_asset_units,
+    get_cash_summary,
+    is_cash_asset,
+    validate_cash_balance,
+)
+from app.services.snapshots import recalculate_snapshots
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 
@@ -23,6 +32,12 @@ def list_assets(session: Session = Depends(get_session)) -> list[Asset]:
 
 @router.post("", response_model=AssetRead, status_code=201)
 def create_asset(data: AssetCreate, session: Session = Depends(get_session)) -> Asset:
+    if data.asset_type == AssetType.CASH:
+        raise HTTPException(
+            status_code=400,
+            detail="Cash is managed automatically. Use the cash page to add money.",
+        )
+
     asset = Asset(
         name=data.name,
         asset_type=data.asset_type,
@@ -32,8 +47,7 @@ def create_asset(data: AssetCreate, session: Session = Depends(get_session)) -> 
         notes=data.notes,
     )
     session.add(asset)
-    session.commit()
-    session.refresh(asset)
+    session.flush()
 
     if data.initial_date and data.initial_value and data.initial_units:
         _upsert_entry(
@@ -43,9 +57,14 @@ def create_asset(data: AssetCreate, session: Session = Depends(get_session)) -> 
                 date=data.initial_date,
                 value=data.initial_value,
                 units=data.initial_units,
+                entry_type=EntryType.BUY,
+                affects_cash=True,
             ),
         )
+    else:
+        session.commit()
 
+    session.refresh(asset)
     return asset
 
 
@@ -65,11 +84,25 @@ def get_asset_valuation(
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
 
-    entries = session.exec(
-        select(AssetEntry).where(AssetEntry.asset_id == asset_id)
-    ).all()
-    invested_value = sum(entry.value for entry in entries)
-    total_units = sum(entry.units for entry in entries)
+    if is_cash_asset(asset):
+        summary = get_cash_summary(session)
+        invested = summary["total_deposits"]
+        current = summary["balance"]
+        change = current - invested
+        return AssetValuation(
+            asset_id=asset.id,
+            invested_value=invested,
+            current_value=current,
+            change=round(change, 2),
+            change_percent=(round((change / invested) * 100, 2) if invested else 0.0),
+            total_units=0.0,
+            latest_price=None,
+            price_source=None,
+            price_fetched_at=None,
+        )
+
+    invested_value = get_asset_invested_value(session, asset_id)
+    total_units = get_asset_units(session, asset_id)
 
     cache = None
     if asset.symbol:
@@ -109,6 +142,11 @@ def update_asset(
     asset = session.get(Asset, asset_id)
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
+    if is_cash_asset(asset) or data.asset_type == AssetType.CASH:
+        raise HTTPException(
+            status_code=400,
+            detail="Cash is managed automatically and cannot be edited as an asset.",
+        )
     asset.name = data.name
     asset.asset_type = data.asset_type
     asset.category = get_category(data.asset_type)
@@ -126,6 +164,17 @@ def delete_asset(asset_id: int, session: Session = Depends(get_session)) -> None
     asset = session.get(Asset, asset_id)
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
+    if is_cash_asset(asset):
+        raise HTTPException(status_code=400, detail="Cash cannot be deleted.")
+
     session.exec(AssetEntry.__table__.delete().where(AssetEntry.asset_id == asset_id))
     session.delete(asset)
+    session.flush()
+
+    cash_error = validate_cash_balance(session)
+    if cash_error:
+        session.rollback()
+        raise HTTPException(status_code=422, detail=cash_error)
+
     session.commit()
+    recalculate_snapshots(session)

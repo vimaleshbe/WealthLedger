@@ -12,7 +12,7 @@ import AssetForm from "../components/AssetForm";
 import { AssetGridSkeleton } from "../components/PageSkeletons";
 import { useAssets, useCreateAsset, useDeleteAsset } from "../api/assets";
 import { useToast } from "../components/ui/toast";
-import { ASSET_TYPES } from "../lib/assetTypes";
+import { SELECTABLE_ASSET_TYPES } from "../lib/assetTypes";
 import type { Asset, AssetCreate, AssetType } from "../types";
 
 export default function AssetList() {
@@ -26,9 +26,14 @@ export default function AssetList() {
   const [typeFilter, setTypeFilter] = useState<"all" | AssetType>("all");
   const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null);
 
+  const holdings = useMemo(
+    () => (assets ?? []).filter((asset) => asset.asset_type !== "cash"),
+    [assets],
+  );
+
   const filteredAssets = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return (assets ?? []).filter((asset) => {
+    return holdings.filter((asset) => {
       const matchesType =
         typeFilter === "all" || asset.asset_type === typeFilter;
       const matchesQuery =
@@ -37,7 +42,7 @@ export default function AssetList() {
         (asset.symbol ?? "").toLowerCase().includes(q);
       return matchesType && matchesQuery;
     });
-  }, [assets, query, typeFilter]);
+  }, [holdings, query, typeFilter]);
 
   const hasFilters = query.trim().length > 0 || typeFilter !== "all";
 
@@ -72,7 +77,7 @@ export default function AssetList() {
   if (isLoading) return <AssetGridSkeleton />;
   if (error) return <ErrorState onRetry={refetch} />;
 
-  const total = assets?.length ?? 0;
+  const total = holdings.length;
 
   return (
     <div className="relative min-h-[calc(100vh-12rem)] space-y-6">
@@ -96,8 +101,8 @@ export default function AssetList() {
           </span>
           <h2 className="mt-4 text-lg font-semibold">No assets yet</h2>
           <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-            Add your first stock, mutual fund, PPF, gold or property to start
-            tracking your portfolio.
+            Add cash from the Cash tab first, then create your first stock,
+            mutual fund, PPF, gold or property.
           </p>
           <Button className="mt-5" onClick={() => setIsModalOpen(true)}>
             <Plus className="h-4 w-4" />
@@ -140,7 +145,7 @@ export default function AssetList() {
                   aria-label="Filter by asset type"
                 >
                   <option value="all">All types</option>
-                  {ASSET_TYPES.map((type) => (
+                  {SELECTABLE_ASSET_TYPES.map((type) => (
                     <option key={type.value} value={type.value}>
                       {type.label}
                     </option>

@@ -5,6 +5,7 @@ from sqlalchemy.dialects.sqlite import JSON
 from sqlmodel import Field, SQLModel
 
 from app.core.asset_types import AssetType, Category, get_category
+from app.core.entry_types import EntryType
 
 
 def now_utc() -> datetime:
@@ -32,13 +33,20 @@ class Asset(SQLModel, table=True):
 
 class AssetEntry(SQLModel, table=True):
     __tablename__ = "asset_entry"
-    __table_args__ = (UniqueConstraint("asset_id", "date", name="uix_asset_date"),)
 
     id: int | None = Field(default=None, primary_key=True)
     asset_id: int = Field(foreign_key="asset.id", index=True)
     date: str = Field(index=True)
-    value: float = Field(gt=0)
+    value: float = Field(ge=0)
     units: float = Field(gt=0)
+    entry_type: EntryType = Field(default=EntryType.BUY)
+    # New entries that move money in or out of the cash ledger set this to
+    # True. Legacy entries keep it False so the cash balance is not changed
+    # retroactively.
+    affects_cash: bool = Field(default=False)
+    # Actual amount that moved through cash. For a sell this is the sale
+    # proceeds, while `value` holds the cost basis of the units sold.
+    cash_value: float | None = None
     notes: str | None = None
     created_at: datetime = Field(default_factory=now_utc)
     updated_at: datetime = Field(default_factory=now_utc)

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { X } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -39,7 +40,7 @@ export function Dialog({
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
       aria-modal="true"
@@ -88,9 +89,12 @@ export function Dialog({
           </button>
         )}
 
-        <div className="overflow-y-auto px-5 py-5 sm:px-6">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+          {children}
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

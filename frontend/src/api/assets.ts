@@ -1,6 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import { api } from "./client";
 import type { Asset, AssetCreate, AssetEntry, AssetValuation, EntryCreate } from "../types";
+
+function invalidatePortfolio(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: ["assets"] });
+  queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  queryClient.invalidateQueries({ queryKey: ["transactions"] });
+  queryClient.invalidateQueries({ queryKey: ["cash"] });
+}
 
 export function useAssets() {
   return useQuery<Asset[]>({
@@ -29,7 +37,7 @@ export function useCreateAsset() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: AssetCreate) => api.post<Asset>("/assets", data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["assets"] }),
+    onSuccess: () => invalidatePortfolio(queryClient),
   });
 }
 
@@ -37,10 +45,7 @@ export function useUpdateAsset(id: number) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: AssetCreate) => api.put<Asset>(`/assets/${id}`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["assets"] });
-      queryClient.invalidateQueries({ queryKey: ["assets", id] });
-    },
+    onSuccess: () => invalidatePortfolio(queryClient),
   });
 }
 
@@ -48,7 +53,7 @@ export function useDeleteAsset() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api.delete(`/assets/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["assets"] }),
+    onSuccess: () => invalidatePortfolio(queryClient),
   });
 }
 
@@ -65,10 +70,7 @@ export function useCreateEntry(assetId: number) {
   return useMutation({
     mutationFn: (data: EntryCreate) =>
       api.post<AssetEntry>(`/assets/${assetId}/entries`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["assets", assetId, "entries"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-    },
+    onSuccess: () => invalidatePortfolio(queryClient),
   });
 }
 
@@ -82,10 +84,7 @@ export function useUpdateEntry(assetId: number) {
       entryId: number;
       data: EntryCreate;
     }) => api.put<AssetEntry>(`/assets/${assetId}/entries/${entryId}`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["assets", assetId, "entries"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-    },
+    onSuccess: () => invalidatePortfolio(queryClient),
   });
 }
 
@@ -94,9 +93,6 @@ export function useDeleteEntry(assetId: number) {
   return useMutation({
     mutationFn: (entryId: number) =>
       api.delete(`/assets/${assetId}/entries/${entryId}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["assets", assetId, "entries"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-    },
+    onSuccess: () => invalidatePortfolio(queryClient),
   });
 }
