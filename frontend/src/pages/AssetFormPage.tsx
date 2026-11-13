@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Navigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import {
   Card,
@@ -13,6 +13,7 @@ import ErrorState from "../components/ErrorState";
 import PageHeader from "../components/PageHeader";
 import AssetForm from "../components/AssetForm";
 import { useAsset, useCreateAsset, useUpdateAsset } from "../api/assets";
+import { isFdAssetType, isRetirementAssetType } from "../lib/assetTypes";
 import { useToast } from "../components/ui/toast";
 import type { AssetCreate } from "../types";
 
@@ -57,6 +58,19 @@ export default function AssetFormPage() {
   if (isLoading) return <PageLoader />;
   if (error) return <ErrorState onRetry={refetch} />;
 
+  if (asset && isRetirementAssetType(asset.asset_type)) {
+    const path =
+      asset.asset_type === "pf"
+        ? "/pf"
+        : asset.asset_type === "ppf"
+          ? "/ppf"
+          : "/nps";
+    return <Navigate to={path} replace />;
+  }
+  if (asset && isFdAssetType(asset.asset_type)) {
+    return <Navigate to={`/fd/${asset.id}`} replace />;
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <Button
@@ -96,6 +110,7 @@ export default function AssetFormPage() {
             onCancel={() =>
               navigate(isEditing ? `/assets/${assetId}` : "/assets")
             }
+            isSubmitting={createAsset.isPending || updateAsset.isPending}
           />
         </CardContent>
       </Card>

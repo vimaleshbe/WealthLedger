@@ -280,7 +280,7 @@ def test_multi_year_portfolio_lifecycle(auth_client):
             expected["units"][name] += operation["units"]
             expected["entry_counts"][name] += 1
             add_snapshot_event(day, 0.0)
-            if name in cache or name in {"Scenario Gold", "Scenario PPF"}:
+            if name in cache or name == "Scenario Gold":
                 expected["xirr_flows"].append(
                     (date.fromisoformat(day), -operation["value"])
                 )
@@ -345,16 +345,16 @@ def test_multi_year_portfolio_lifecycle(auth_client):
         "fixed_deposit",
         "liquid_fund",
         "arbitrage_fund",
-        "ppf",
     }
     for name, asset in assets.items():
         valuation = _get(auth_client, f"/assets/{asset['id']}/valuation")
         assert valuation["invested_value"] == pytest.approx(
             expected["invested"][name], abs=0.02
         )
-        assert valuation["total_units"] == pytest.approx(
-            expected["units"][name], abs=1e-6
-        )
+        if asset["asset_type"] not in {"pf", "ppf", "nps", "fixed_deposit"}:
+            assert valuation["total_units"] == pytest.approx(
+                expected["units"][name], abs=1e-6
+            )
         expected_net_worth += expected["invested"][name]
         if asset["asset_type"] in portfolio_types:
             expected_portfolio += expected["invested"][name]
@@ -429,9 +429,6 @@ def test_multi_year_portfolio_lifecycle(auth_client):
     # Gold has no cached rate in this scenario, so its current value falls
     # back to its metal cost basis.
     xirr_flows.append((date.today(), expected["invested"]["Scenario Gold"]))
-    # PPF is part of portfolio XIRR and has no market price, so it is valued
-    # at its contributed cost.
-    xirr_flows.append((date.today(), expected["invested"]["Scenario PPF"]))
     expected_xirr = _independent_xirr(xirr_flows)
     assert expected_xirr is not None
     xirr = _get(auth_client, "/dashboard/xirr")
@@ -538,7 +535,7 @@ def test_xirr_scopes_separate_equity_and_gold(auth_client):
     assert portfolio_rate < equity_rate
 
 
-def test_portfolio_xirr_includes_ppf(auth_client):
+def test_portfolio_xirr_excludes_retirement_accounts(auth_client):
     _deposit(auth_client, "2021-01-01", 4000)
     stock = _create_asset(auth_client, "PPF Scope Stock", "stock", symbol="PPFSCOPE.NS")
     _add_entry(auth_client, stock["id"], "2021-01-01", 1000, 10, "buy")
@@ -562,8 +559,9 @@ def test_portfolio_xirr_includes_ppf(auth_client):
             session, as_of=date(2022, 1, 1), scope="portfolio"
         )
 
+    # PPF is a retirement balance and does not dilute portfolio XIRR.
     assert equity_rate == pytest.approx(1.0, abs=1e-7)
-    assert portfolio_rate == pytest.approx(0.5, abs=1e-7)
+    assert portfolio_rate == pytest.approx(equity_rate, abs=1e-7)
 
 
 def test_scope_cagr_uses_market_value(auth_client):
@@ -932,9 +930,9 @@ def test_every_asset_type_valuation_and_category_totals(auth_client):
         )
 
     summary = _get(auth_client, "/dashboard/summary")
-    assert summary["cash_value"] == pytest.approx(89_000.0)
-    assert summary["portfolio_value"] == pytest.approx(6_000.0)
-    assert summary["net_worth"] == pytest.approx(100_000.0)
+    assert summary["cash_value"] == pytest.approx(90_000.0)
+    assert summary["portfolio_value"] == pytest.approx(5_000.0)
+    assert summary["net_worth"] == pytest.approx(101_000.0)
     assert summary["asset_count"] == len(asset_types)
 
     allocation = _get(auth_client, "/dashboard/allocation")
@@ -943,7 +941,7 @@ def test_every_asset_type_valuation_and_category_totals(auth_client):
     }
     assert by_category == pytest.approx(
         {
-            "cash": 90_000.0,
+            "cash": 91_000.0,
             "debt": 5000.0,
             "equity": 2000.0,
             "others": 1000.0,
@@ -953,7 +951,7 @@ def test_every_asset_type_valuation_and_category_totals(auth_client):
     )
     assert _get(auth_client, "/dashboard/trend")["points"][-1][
         "total_value"
-    ] == pytest.approx(100_000.0)
+    ] == pytest.approx(101_000.0)
     # With no market price cached, XIRR falls back to invested value: 0% gain.
     assert _get(auth_client, "/dashboard/xirr")["xirr"] == pytest.approx(0.0, abs=1e-12)
 

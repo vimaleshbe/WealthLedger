@@ -22,6 +22,7 @@ from app.services.cash import (
     is_closed_asset,
     validate_cash_balance,
 )
+from app.services.retirement import get_retirement_summary, is_retirement_asset
 from app.services.snapshots import recalculate_snapshots
 from app.services.valuation import (
     get_asset_current_value,
@@ -115,14 +116,35 @@ def get_asset_valuation(
             price_fetched_at=None,
         )
 
+    if is_retirement_asset(asset):
+        retirement = get_retirement_summary(session, asset_id)
+        change = retirement.balance - retirement.invested_value
+        is_nps = asset.asset_type == AssetType.NPS
+        return AssetValuation(
+            asset_id=asset.id,
+            invested_value=retirement.invested_value,
+            current_value=retirement.balance,
+            change=round(change, 2),
+            change_percent=(
+                round((change / retirement.invested_value) * 100, 2)
+                if retirement.invested_value
+                else 0.0
+            ),
+            total_units=retirement.units if is_nps else 0.0,
+            latest_price=retirement.latest_nav if is_nps else None,
+            price_source=(
+                "NPS NAV" if is_nps and retirement.latest_nav is not None else None
+            ),
+            price_fetched_at=None,
+            price_unit="unit" if is_nps else "balance",
+        )
+
     invested_value = get_asset_invested_value(session, asset_id)
     total_units = get_asset_units(session, asset_id)
     cache = get_price_cache(session, asset)
 
     latest_price = cache.price if cache else None
-    current_value = (
-        get_asset_current_value(session, asset) if latest_price else invested_value
-    )
+    current_value = get_asset_current_value(session, asset)
     change = current_value - invested_value
     change_percent = (
         round((change / invested_value) * 100, 2) if invested_value else 0.0

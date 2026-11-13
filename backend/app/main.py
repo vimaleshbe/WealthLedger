@@ -8,7 +8,18 @@ from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import assets, auth, cash, dashboard, entries, gold, search, sync
+from app.api import (
+    assets,
+    auth,
+    cash,
+    dashboard,
+    entries,
+    fd,
+    gold,
+    retirement,
+    search,
+    sync,
+)
 from app.core.config import settings
 from app.core.middleware import SecurityMiddleware
 from app.core.security import validate_auth_config
@@ -68,8 +79,10 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(assets.router, prefix="/api/v1")
 app.include_router(entries.router, prefix="/api/v1")
 app.include_router(cash.router, prefix="/api/v1")
+app.include_router(fd.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(gold.router, prefix="/api/v1")
+app.include_router(retirement.router, prefix="/api/v1")
 app.include_router(sync.router, prefix="/api/v1")
 app.include_router(search.router, prefix="/api/v1")
 

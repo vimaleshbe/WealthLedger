@@ -1,5 +1,5 @@
 import { Select } from "./ui/select";
-import { SELECTABLE_ASSET_TYPES } from "../lib/assetTypes";
+import { ASSET_TYPES, EDITABLE_ASSET_TYPES } from "../lib/assetTypes";
 import type { AssetType } from "../types";
 
 interface AssetTypeSelectProps {
@@ -8,12 +8,19 @@ interface AssetTypeSelectProps {
 }
 
 export default function AssetTypeSelect({ value, onChange }: AssetTypeSelectProps) {
+  const options = EDITABLE_ASSET_TYPES.some((type) => type.value === value)
+    ? EDITABLE_ASSET_TYPES
+    : [
+        ...EDITABLE_ASSET_TYPES,
+        ...ASSET_TYPES.filter((type) => type.value === value),
+      ];
+
   return (
     <Select
       value={value}
       onChange={(e) => onChange(e.target.value as AssetType)}
     >
-      {SELECTABLE_ASSET_TYPES.map((type) => (
+      {options.map((type) => (
         <option key={type.value} value={type.value}>
           {type.label}
         </option>

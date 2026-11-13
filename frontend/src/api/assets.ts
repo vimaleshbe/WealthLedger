@@ -3,11 +3,13 @@ import type { QueryClient } from "@tanstack/react-query";
 import { api } from "./client";
 import type { Asset, AssetCreate, AssetEntry, AssetValuation, EntryCreate } from "../types";
 
-function invalidatePortfolio(queryClient: QueryClient) {
+export function invalidatePortfolio(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: ["assets"] });
   queryClient.invalidateQueries({ queryKey: ["dashboard"] });
   queryClient.invalidateQueries({ queryKey: ["transactions"] });
   queryClient.invalidateQueries({ queryKey: ["cash"] });
+  queryClient.invalidateQueries({ queryKey: ["retirement"] });
+  queryClient.invalidateQueries({ queryKey: ["fd"] });
 }
 
 export function useAssets(includeClosed = true) {

@@ -34,7 +34,7 @@ export default function TotalValueCard({
             {assetCount} {assetCount === 1 ? "asset" : "assets"}
           </Badge>
           <span className="text-xs text-muted-foreground">
-            Stocks, funds, FDs + PPF
+            Stocks, funds + FDs
           </span>
         </div>
       </CardContent>

@@ -10,6 +10,7 @@ import {
   ENTRY_TYPE_LABELS,
   getAssetTypeLabel,
   isCashEntry,
+  isRetirementAssetType,
 } from "../lib/assetTypes";
 import {
   cn,
@@ -17,7 +18,7 @@ import {
   formatDate,
   formatNumber,
 } from "../lib/utils";
-import type { EntryType } from "../types";
+import type { EntryType, Transaction } from "../types";
 
 function entryBadgeClass(type: EntryType): string {
   switch (type) {
@@ -27,9 +28,22 @@ function entryBadgeClass(type: EntryType): string {
       return "border-transparent bg-teal-100 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300";
     case "withdrawal":
       return "border-transparent bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300";
+    case "interest":
+      return "border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300";
     default:
       return "border-transparent bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300";
   }
+}
+
+function entryLabel(txn: Transaction): string {
+  if (txn.asset_type === "fixed_deposit") {
+    if (txn.entry_type === "buy") return "Principal";
+    if (txn.entry_type === "sell") return "Withdrawal";
+  }
+  if (txn.entry_type === "buy" && isRetirementAssetType(txn.asset_type)) {
+    return txn.asset_type === "ppf" ? "Money added" : "Contribution";
+  }
+  return ENTRY_TYPE_LABELS[txn.entry_type];
 }
 
 export default function Transactions() {
@@ -43,7 +57,7 @@ export default function Transactions() {
       (txn) =>
         txn.asset_name.toLowerCase().includes(q) ||
         getAssetTypeLabel(txn.asset_type).toLowerCase().includes(q) ||
-        ENTRY_TYPE_LABELS[txn.entry_type].toLowerCase().includes(q) ||
+        entryLabel(txn).toLowerCase().includes(q) ||
         txn.date.includes(q),
     );
   }, [transactions, query]);
@@ -132,10 +146,13 @@ export default function Transactions() {
                   {filtered.map((txn) => {
                     const cashEntry = isCashEntry(txn.entry_type);
                     const isGold = txn.asset_type === "physical_gold";
+                    const isRetirement = isRetirementAssetType(txn.asset_type);
                     const amount = txn.cash_value ?? txn.value;
-                    const isCashIn =
+                    const isCredit =
                       txn.entry_type === "sell" ||
-                      txn.entry_type === "deposit";
+                      txn.entry_type === "deposit" ||
+                      txn.entry_type === "interest";
+                    const isDebit = txn.entry_type === "withdrawal";
                     return (
                       <tr
                         key={`${txn.asset_id}-${txn.id}`}
@@ -149,7 +166,7 @@ export default function Transactions() {
                             <div>
                               <p className="font-medium">{formatDate(txn.date)}</p>
                               <p className="text-[11px] text-muted-foreground">
-                                {txn.notes || ENTRY_TYPE_LABELS[txn.entry_type]}
+                                {txn.notes || entryLabel(txn)}
                               </p>
                             </div>
                           </div>
@@ -169,28 +186,22 @@ export default function Transactions() {
                         </td>
                         <td className="whitespace-nowrap px-4 py-3.5 sm:px-5">
                           <Badge className={entryBadgeClass(txn.entry_type)}>
-                            {ENTRY_TYPE_LABELS[txn.entry_type]}
+                            {entryLabel(txn)}
                           </Badge>
                         </td>
                         <td className="whitespace-nowrap px-4 py-3.5 text-right tabular-nums text-muted-foreground sm:px-5">
-                          {cashEntry
+                          {cashEntry || isRetirement
                             ? "—"
                             : `${formatNumber(txn.units, 3)}${isGold ? " g" : ""}`}
                         </td>
                         <td
                           className={cn(
                             "whitespace-nowrap px-4 py-3.5 text-right font-semibold tabular-nums sm:px-5",
-                            isCashIn && "text-emerald-600 dark:text-emerald-400",
-                            txn.entry_type === "withdrawal" &&
-                              "text-rose-600 dark:text-rose-400",
+                            isCredit && "text-emerald-600 dark:text-emerald-400",
+                            isDebit && "text-rose-600 dark:text-rose-400",
                           )}
                         >
-                          {txn.entry_type === "sell" ||
-                          txn.entry_type === "deposit"
-                            ? "+"
-                            : txn.entry_type === "withdrawal"
-                              ? "−"
-                              : ""}
+                          {isCredit ? "+" : isDebit ? "−" : ""}
                           {formatCurrency(amount)}
                         </td>
                       </tr>

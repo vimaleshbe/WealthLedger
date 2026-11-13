@@ -30,6 +30,7 @@ interface AssetFormProps {
   initial?: Partial<AssetCreate> & { gold_purity?: GoldPurity | null };
   onSubmit: (data: AssetCreate) => void;
   onCancel: () => void;
+  isSubmitting?: boolean;
 }
 
 const SEARCHABLE_TYPES: AssetType[] = [
@@ -50,7 +51,12 @@ interface InitialEntry {
   details?: Record<string, unknown>;
 }
 
-export default function AssetForm({ initial, onSubmit, onCancel }: AssetFormProps) {
+export default function AssetForm({
+  initial,
+  onSubmit,
+  onCancel,
+  isSubmitting = false,
+}: AssetFormProps) {
   const isEditing = !!initial?.name;
   const today = todayISO();
 
@@ -328,6 +334,7 @@ export default function AssetForm({ initial, onSubmit, onCancel }: AssetFormProp
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!isEditing && step < WIZARD_STEPS.length) {
       goNext();
       return;
@@ -895,7 +902,9 @@ export default function AssetForm({ initial, onSubmit, onCancel }: AssetFormProp
           <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-          <Button type="submit">Save changes</Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Saving…" : "Save changes"}
+          </Button>
         </div>
       ) : (
         <div className="flex flex-col-reverse gap-2 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
@@ -911,7 +920,9 @@ export default function AssetForm({ initial, onSubmit, onCancel }: AssetFormProp
               Next
             </Button>
           ) : (
-            <Button type="submit">Create asset</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Saving…" : "Create asset"}
+            </Button>
           )}
         </div>
       )}

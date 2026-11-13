@@ -45,6 +45,16 @@ ASSET_TYPE_CATEGORIES: dict[AssetType, Category] = {
     AssetType.REAL_ESTATE: Category.REAL_ESTATE,
 }
 
+# Balance accounts that are tracked outside the market portfolio. They count
+# in net worth but are presented in the Retirement tab.
+RETIREMENT_ASSET_TYPES: frozenset[AssetType] = frozenset(
+    {AssetType.PF, AssetType.PPF, AssetType.NPS}
+)
+
+
+def is_retirement_type(asset_type: AssetType) -> bool:
+    return asset_type in RETIREMENT_ASSET_TYPES
+
 
 def get_category(asset_type: AssetType) -> Category:
     return ASSET_TYPE_CATEGORIES.get(asset_type, Category.EQUITY)

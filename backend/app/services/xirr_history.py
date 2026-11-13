@@ -7,8 +7,10 @@ transaction dates using each asset's historical NAV/price series.
 
 from bisect import bisect_right
 from datetime import UTC, date, datetime, timedelta
+from threading import RLock
 
 import httpx
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlmodel import Session, select
 
 from app.core.asset_types import AssetType
@@ -21,26 +23,32 @@ from app.services.xirr import get_portfolio_xirr
 # points as empty gaps until there is a month of data.
 MIN_HISTORY_DAYS = 30
 
+# Two entry submissions can rebuild the series at the same time. Serialize
+# the rebuild so one request cannot delete rows while the other is inserting
+# the same dates.
+_XIRR_HISTORY_LOCK = RLock()
+
 
 def record_xirr_snapshot(
     session: Session, snapshot_date: date | None = None
 ) -> XirrSnapshot:
     """Create or update the XIRR snapshot for a day."""
-    day = (snapshot_date or date.today()).isoformat()
-    rate = get_portfolio_xirr(session)
+    with _XIRR_HISTORY_LOCK:
+        day = (snapshot_date or date.today()).isoformat()
+        rate = get_portfolio_xirr(session)
 
-    snapshot = session.exec(
-        select(XirrSnapshot).where(XirrSnapshot.date == day)
-    ).first()
-    if snapshot:
-        snapshot.xirr = rate
-        snapshot.updated_at = datetime.now(UTC)
-    else:
-        snapshot = XirrSnapshot(date=day, xirr=rate)
-        session.add(snapshot)
-    session.commit()
-    session.refresh(snapshot)
-    return snapshot
+        snapshot = session.exec(
+            select(XirrSnapshot).where(XirrSnapshot.date == day)
+        ).first()
+        if snapshot:
+            snapshot.xirr = rate
+            snapshot.updated_at = datetime.now(UTC)
+        else:
+            snapshot = XirrSnapshot(date=day, xirr=rate)
+            session.add(snapshot)
+        session.commit()
+        session.refresh(snapshot)
+        return snapshot
 
 
 def get_xirr_history(session: Session) -> list[XirrSnapshot]:
@@ -93,63 +101,83 @@ def _price_on_or_before(
 
 def backfill_xirr_history(session: Session, today: date | None = None) -> int:
     """Fill missing past XIRR points from the transaction history."""
-    end = today or date.today()
-    assets = session.exec(
-        select(Asset).where(
-            Asset.asset_type.in_(["stock", "mutual_fund", "physical_gold"])
-        )
-    ).all()
-    asset_ids = [asset.id for asset in assets if asset.id is not None]
-    if not asset_ids:
-        return 0
-
-    entries = session.exec(
-        select(AssetEntry).where(AssetEntry.asset_id.in_(asset_ids))
-    ).all()
-    if not entries:
-        return 0
-
-    start = min(date.fromisoformat(entry.date) for entry in entries)
-    existing = {snapshot.date for snapshot in get_xirr_history(session)}
-    missing = [
-        start + timedelta(days=offset)
-        for offset in range((end - start).days)
-        if (start + timedelta(days=offset)).isoformat() not in existing
-    ]
-    if not missing:
-        return 0
-
-    # Gold has no historical price series in this app; get_portfolio_xirr
-    # values past gold points at their metal cost basis. Do not pass the
-    # current gold rate through the override map for historical dates.
-    price_data = {
-        asset.id: _load_prices(session, asset, start, end)
-        for asset in assets
-        if asset.id is not None and asset.asset_type != AssetType.PHYSICAL_GOLD
-    }
-
-    for day in missing:
-        overrides: dict[int, float] = {}
-        for asset in assets:
-            if asset.id is None or asset.asset_type == AssetType.PHYSICAL_GOLD:
-                continue
-            prices, days, fallback = price_data[asset.id]
-            price = _price_on_or_before(prices, days, day.isoformat(), fallback)
-            if price is not None:
-                overrides[asset.id] = price
-        session.add(
-            XirrSnapshot(
-                date=day.isoformat(),
-                xirr=(
-                    get_portfolio_xirr(session, as_of=day, price_overrides=overrides)
-                    if (day - start).days >= MIN_HISTORY_DAYS
-                    else None
-                ),
+    with _XIRR_HISTORY_LOCK:
+        end = today or date.today()
+        assets = session.exec(
+            select(Asset).where(
+                Asset.asset_type.in_(["stock", "mutual_fund", "physical_gold"])
             )
-        )
+        ).all()
+        asset_ids = [asset.id for asset in assets if asset.id is not None]
+        if not asset_ids:
+            return 0
 
-    session.commit()
-    return len(missing)
+        entries = session.exec(
+            select(AssetEntry).where(AssetEntry.asset_id.in_(asset_ids))
+        ).all()
+        if not entries:
+            return 0
+
+        start = min(date.fromisoformat(entry.date) for entry in entries)
+        existing = {snapshot.date for snapshot in get_xirr_history(session)}
+        missing = [
+            start + timedelta(days=offset)
+            for offset in range((end - start).days)
+            if (start + timedelta(days=offset)).isoformat() not in existing
+        ]
+        if not missing:
+            return 0
+
+        # Gold has no historical price series in this app; get_portfolio_xirr
+        # values past gold points at their metal cost basis. Do not pass the
+        # current gold rate through the override map for historical dates.
+        price_data = {
+            asset.id: _load_prices(session, asset, start, end)
+            for asset in assets
+            if asset.id is not None and asset.asset_type != AssetType.PHYSICAL_GOLD
+        }
+
+        # Compute every value before adding rows. Adding rows inside the loop
+        # triggers an autoflush when get_portfolio_xirr queries, which can
+        # collide with a concurrent rebuild.
+        rows: list[dict[str, object]] = []
+        now = datetime.now(UTC)
+        for day in missing:
+            overrides: dict[int, float] = {}
+            for asset in assets:
+                if asset.id is None or asset.asset_type == AssetType.PHYSICAL_GOLD:
+                    continue
+                prices, days, fallback = price_data[asset.id]
+                price = _price_on_or_before(prices, days, day.isoformat(), fallback)
+                if price is not None:
+                    overrides[asset.id] = price
+            rows.append(
+                {
+                    "date": day.isoformat(),
+                    "xirr": (
+                        get_portfolio_xirr(
+                            session, as_of=day, price_overrides=overrides
+                        )
+                        if (day - start).days >= MIN_HISTORY_DAYS
+                        else None
+                    ),
+                    "created_at": now,
+                    "updated_at": now,
+                }
+            )
+
+        if rows:
+            statement = sqlite_insert(XirrSnapshot).values(rows)
+            statement = statement.on_conflict_do_update(
+                index_elements=["date"],
+                set_={
+                    "xirr": statement.excluded.xirr,
+                    "updated_at": now,
+                },
+            )
+            session.execute(statement)
+            session.commit()
+        return len(rows)
 
 
 def recalculate_xirr_history(session: Session, today: date | None = None) -> int:

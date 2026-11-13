@@ -36,6 +36,7 @@ interface EntryFormProps {
   onSubmit: (data: EntryCreate) => void;
   onCancel: () => void;
   isEditing?: boolean;
+  isSubmitting?: boolean;
 }
 
 export default function EntryForm({
@@ -49,6 +50,7 @@ export default function EntryForm({
   onSubmit,
   onCancel,
   isEditing = false,
+  isSubmitting = false,
 }: EntryFormProps) {
   const today = todayISO();
   const entryKind: EntryType = kind ?? initial?.entry_type ?? "buy";
@@ -178,6 +180,7 @@ export default function EntryForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!date) {
       setError("Date is required");
       return;
@@ -319,6 +322,7 @@ export default function EntryForm({
       : "The sale proceeds will be credited to your cash balance.",
     deposit: "Money will be added to your cash balance.",
     withdrawal: "Money will be removed from your cash balance.",
+    interest: "Interest is credited to the asset without increasing invested capital.",
   };
 
   const submitLabels: Record<EntryType, string> = {
@@ -326,6 +330,7 @@ export default function EntryForm({
     sell: "Sell",
     deposit: "Deposit",
     withdrawal: "Withdraw",
+    interest: "Add Interest",
   };
 
   return (
@@ -623,9 +628,14 @@ export default function EntryForm({
         </Button>
         <Button
           type="submit"
+          disabled={isSubmitting}
           className={isSell ? "bg-emerald-600 hover:bg-emerald-700" : undefined}
         >
-          {isEditing ? "Save Changes" : submitLabels[entryKind]}
+          {isSubmitting
+            ? "Saving…"
+            : isEditing
+              ? "Save Changes"
+              : submitLabels[entryKind]}
         </Button>
       </div>
     </form>

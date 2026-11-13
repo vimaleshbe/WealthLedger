@@ -17,7 +17,18 @@ from app.services.cash import (
     validate_asset_holdings,
     validate_cash_balance,
 )
+from app.services.fd import is_fd_asset, validate_fd_balance
 from app.services.gold import GoldDetailsError, calculate_gold_purchase
+from app.services.retirement import (
+    PFDetailsError,
+    is_nps_asset,
+    is_pf_asset,
+    is_ppf_asset,
+    is_retirement_asset,
+    parse_pf_contribution,
+    validate_nps_units,
+    validate_retirement_balance,
+)
 from app.services.snapshots import recalculate_snapshots
 from app.services.xirr_history import recalculate_xirr_history
 
@@ -27,6 +38,12 @@ router = APIRouter(tags=["entries"])
 def _product_entry_types(asset: Asset) -> tuple[EntryType, ...]:
     if is_cash_asset(asset):
         return (EntryType.DEPOSIT, EntryType.WITHDRAWAL)
+    if asset.asset_type == AssetType.FIXED_DEPOSIT:
+        return (EntryType.BUY, EntryType.SELL, EntryType.INTEREST)
+    if is_nps_asset(asset):
+        return (EntryType.BUY, EntryType.SELL)
+    if is_retirement_asset(asset):
+        return (EntryType.BUY, EntryType.SELL, EntryType.INTEREST)
     return (EntryType.BUY, EntryType.SELL)
 
 
@@ -47,10 +64,52 @@ def _upsert_entry(
         )
 
     entry_type = data.entry_type
-    units = 1.0 if is_cash_asset(asset) else data.units
+    is_pf = is_pf_asset(asset)
+    is_ppf = is_ppf_asset(asset)
+    is_nps = is_nps_asset(asset)
+    is_retirement = is_retirement_asset(asset)
+    is_fd = is_fd_asset(asset)
+    units = (
+        1.0
+        if is_cash_asset(asset) or (is_retirement and not is_nps) or is_fd
+        else data.units
+    )
     entry_details = dict(data.details) if data.details else None
     value = data.value
     cash_value_override = data.cash_value if data.cash_value is not None else data.value
+
+    if is_retirement:
+        entry_details = entry_details or {}
+        if entry_type == EntryType.BUY:
+            if is_pf:
+                try:
+                    contribution = parse_pf_contribution(entry_details, data.value)
+                except PFDetailsError as exc:
+                    raise HTTPException(status_code=422, detail=str(exc)) from exc
+                value = contribution.total
+                entry_details = contribution.as_entry_details()
+            else:
+                entry_details = {**entry_details, "kind": "contribution"}
+            if not is_nps:
+                units = 1.0
+            # PPF is always funded from the tracked Cash balance. NPS keeps
+            # the optional cash link.
+            cash_value_override = (
+                value if (data.affects_cash or is_ppf) and not is_pf else None
+            )
+        elif entry_type == EntryType.INTEREST:
+            if not is_nps:
+                units = 1.0
+            entry_details = {**entry_details, "kind": "interest"}
+            cash_value_override = None
+        elif entry_type == EntryType.SELL:
+            if not is_nps:
+                units = 1.0
+            entry_details = {**entry_details, "retirement_withdrawal": True}
+            # A PPF withdrawal is always paid back into Cash.
+            cash_value_override = (
+                value if (data.affects_cash or is_ppf) and not is_pf else None
+            )
 
     if asset.asset_type == AssetType.PHYSICAL_GOLD and not is_cash_asset(asset):
         purity = purity_from_asset(asset).value
@@ -88,9 +147,24 @@ def _upsert_entry(
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    affects_cash = (
-        is_cash_asset(asset) or entry_type == EntryType.SELL or data.affects_cash
-    )
+    if is_pf:
+        # PF is salary-based and does not move the app's cash ledger.
+        affects_cash = False
+    elif is_retirement:
+        # PPF always moves money through tracked cash: contributions are paid
+        # from cash and withdrawals are credited back. NPS keeps the optional
+        # cash link.
+        affects_cash = bool(
+            entry_type in (EntryType.BUY, EntryType.SELL)
+            and (data.affects_cash or is_ppf)
+        )
+    else:
+        affects_cash = (
+            is_cash_asset(asset)
+            or entry_type == EntryType.SELL
+            or data.affects_cash
+            or (is_fd and entry_type == EntryType.BUY)
+        )
     cash_value = cash_value_override if affects_cash else None
 
     previous_date: str | None = None
@@ -128,6 +202,24 @@ def _upsert_entry(
     if holding_error:
         session.rollback()
         raise HTTPException(status_code=422, detail=holding_error)
+
+    if is_nps:
+        units_error = validate_nps_units(session, asset_id)
+        if units_error:
+            session.rollback()
+            raise HTTPException(status_code=422, detail=units_error)
+
+    if is_retirement:
+        retirement_error = validate_retirement_balance(session, asset_id)
+        if retirement_error:
+            session.rollback()
+            raise HTTPException(status_code=422, detail=retirement_error)
+
+    if is_fd:
+        fd_error = validate_fd_balance(session, asset_id)
+        if fd_error:
+            session.rollback()
+            raise HTTPException(status_code=422, detail=fd_error)
 
     cash_error = validate_cash_balance(session)
     if cash_error:
@@ -205,6 +297,24 @@ def delete_entry(
     if holding_error:
         session.rollback()
         raise HTTPException(status_code=422, detail=holding_error)
+
+    if entry_asset is not None and is_nps_asset(entry_asset):
+        units_error = validate_nps_units(session, asset_id)
+        if units_error:
+            session.rollback()
+            raise HTTPException(status_code=422, detail=units_error)
+
+    if entry_asset is not None and is_retirement_asset(entry_asset):
+        retirement_error = validate_retirement_balance(session, asset_id)
+        if retirement_error:
+            session.rollback()
+            raise HTTPException(status_code=422, detail=retirement_error)
+
+    if entry_asset is not None and is_fd_asset(entry_asset):
+        fd_error = validate_fd_balance(session, asset_id)
+        if fd_error:
+            session.rollback()
+            raise HTTPException(status_code=422, detail=fd_error)
 
     cash_error = validate_cash_balance(session)
     if cash_error:

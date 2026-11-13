@@ -18,6 +18,12 @@ from sqlmodel import Session, select
 from app.core.asset_types import AssetType, Category
 from app.core.entry_types import EntryType
 from app.models import Asset, AssetEntry
+from app.services.fd import is_fd_asset
+from app.services.retirement import (
+    get_retirement_invested_value,
+    get_retirement_units,
+    is_retirement_asset,
+)
 
 CASH_ASSET_NAME = "Cash"
 UNITS_EPSILON = 1e-9
@@ -72,17 +78,22 @@ def entry_net_worth_effect(entry: AssetEntry) -> float:
     Legacy purchases (affects_cash=False) keep their historical behaviour and
     add to net worth directly.
     """
+    details = entry.details or {}
     if entry.entry_type == EntryType.BUY:
         effect = entry.value
         if entry.affects_cash:
             effect -= entry_cash_value(entry)
         return effect
     if entry.entry_type == EntryType.SELL:
+        if details.get("retirement_withdrawal") and not entry.affects_cash:
+            return -entry.value
         return entry_cash_value(entry) - entry.value
     if entry.entry_type == EntryType.DEPOSIT:
         return entry.value
     if entry.entry_type == EntryType.WITHDRAWAL:
         return -entry.value
+    if entry.entry_type == EntryType.INTEREST:
+        return entry.value
     return 0.0
 
 
@@ -135,6 +146,10 @@ def get_asset_entries(session: Session, asset_id: int) -> list[AssetEntry]:
 
 def get_asset_invested_value(session: Session, asset_id: int) -> float:
     """Return the remaining cost basis of an asset."""
+    asset = session.get(Asset, asset_id)
+    if is_retirement_asset(asset):
+        return get_retirement_invested_value(session, asset_id)
+
     entries = get_asset_entries(session, asset_id)
     total = 0.0
     for entry in entries:
@@ -146,6 +161,14 @@ def get_asset_invested_value(session: Session, asset_id: int) -> float:
 
 
 def get_asset_units(session: Session, asset_id: int) -> float:
+    asset = session.get(Asset, asset_id)
+    if is_retirement_asset(asset):
+        if asset is not None and asset.asset_type == AssetType.NPS:
+            return get_retirement_units(session, asset_id)
+        return 0.0
+    if is_fd_asset(asset):
+        return 0.0
+
     entries = get_asset_entries(session, asset_id)
     total = 0.0
     for entry in entries:
@@ -161,9 +184,10 @@ def is_closed_asset(session: Session, asset: Asset) -> bool:
 
     Assets created without an initial holding have no entries and stay
     visible so they can be edited. A fully sold holding is considered closed
-    and should not appear in active lists or counts.
+    and should not appear in active lists or counts. Retirement accounts are
+    balance accounts and never close through unit sales.
     """
-    if is_cash_asset(asset):
+    if is_cash_asset(asset) or is_retirement_asset(asset) or is_fd_asset(asset):
         return False
 
     entries = get_asset_entries(session, asset.id)
@@ -187,7 +211,12 @@ def recalculate_asset_cost_basis(session: Session, asset_id: int) -> None:
     so the "invested" figure and realised gains stay consistent.
     """
     asset = session.get(Asset, asset_id)
-    if not asset or is_cash_asset(asset):
+    if (
+        not asset
+        or is_cash_asset(asset)
+        or is_retirement_asset(asset)
+        or is_fd_asset(asset)
+    ):
         return
 
     entries = get_asset_entries(session, asset_id)
@@ -219,7 +248,12 @@ def recalculate_asset_cost_basis(session: Session, asset_id: int) -> None:
 def validate_asset_holdings(session: Session, asset_id: int) -> str | None:
     """Return an error message if any sale exceeds the units held then."""
     asset = session.get(Asset, asset_id)
-    if not asset or is_cash_asset(asset):
+    if (
+        not asset
+        or is_cash_asset(asset)
+        or is_retirement_asset(asset)
+        or is_fd_asset(asset)
+    ):
         return None
 
     entries = get_asset_entries(session, asset_id)

@@ -7,6 +7,9 @@ import {
   LogOut,
   TrendingUp,
   Banknote,
+  Building2,
+  Landmark,
+  PiggyBank,
 } from "lucide-react";
 import NavLink from "./components/NavLink";
 import SyncButton from "./components/SyncButton";
@@ -21,6 +24,12 @@ const AssetList = lazy(() => import("./pages/AssetList"));
 const AssetFormPage = lazy(() => import("./pages/AssetFormPage"));
 const AssetView = lazy(() => import("./pages/AssetView"));
 const Cash = lazy(() => import("./pages/Cash"));
+const FD = lazy(() => import("./pages/FD"));
+const FDDetail = lazy(() => import("./pages/FDDetail"));
+const Retirement = lazy(() => import("./pages/Retirement"));
+const RetirementAccountPage = lazy(
+  () => import("./pages/RetirementAccountPage"),
+);
 const Transactions = lazy(() => import("./pages/Transactions"));
 
 function RouteProgress() {
@@ -114,19 +123,47 @@ function Header() {
           <nav className="flex items-center gap-1 rounded-xl border border-border/60 bg-card/70 p-1 shadow-sm">
             <NavLink to="/" end>
               <LayoutDashboard className="h-4 w-4" />
-              <span className="hidden sm:inline">Dashboard</span>
+              <span className="hidden xl:inline">Dashboard</span>
             </NavLink>
             <NavLink to="/assets">
               <Wallet className="h-4 w-4" />
-              <span className="hidden sm:inline">Assets</span>
+              <span className="hidden xl:inline">Assets</span>
             </NavLink>
             <NavLink to="/cash">
               <Banknote className="h-4 w-4" />
-              <span className="hidden sm:inline">Cash</span>
+              <span className="hidden xl:inline">Cash</span>
             </NavLink>
+            <NavLink to="/fd">
+              <Building2 className="h-4 w-4" />
+              <span className="hidden xl:inline">FD</span>
+            </NavLink>
+            <span className="flex xl:hidden">
+              <NavLink to="/retirement">
+                <Landmark className="h-4 w-4" />
+                <span className="sr-only">Retirement</span>
+              </NavLink>
+            </span>
+            <span className="hidden xl:flex">
+              <NavLink to="/pf">
+                <Landmark className="h-4 w-4" />
+                <span>PF</span>
+              </NavLink>
+            </span>
+            <span className="hidden xl:flex">
+              <NavLink to="/ppf">
+                <Wallet className="h-4 w-4" />
+                <span>PPF</span>
+              </NavLink>
+            </span>
+            <span className="hidden xl:flex">
+              <NavLink to="/nps">
+                <PiggyBank className="h-4 w-4" />
+                <span>NPS</span>
+              </NavLink>
+            </span>
             <NavLink to="/transactions">
               <ArrowLeftRight className="h-4 w-4" />
-              <span className="hidden sm:inline">Transactions</span>
+              <span className="hidden xl:inline">Transactions</span>
             </NavLink>
           </nav>
           <SyncButton />
@@ -152,23 +189,36 @@ function App() {
   const { user, loading } = useAuth();
 
   useEffect(() => {
-    const pageTitle = pathname === "/"
-      ? "Dashboard"
-      : pathname === "/assets"
-        ? "Assets"
-        : pathname === "/cash"
-          ? "Cash"
-          : pathname === "/transactions"
-            ? "Transactions"
-          : pathname === "/assets/new"
-            ? "Add Asset"
-            : /^\/assets\/\d+$/.test(pathname)
-              ? "Asset Details"
-              : /^\/assets\/\d+\/edit$/.test(pathname)
-                ? "Edit Asset"
-                : pathname === "/login"
-                  ? "Sign in"
-                  : "WealthLedger";
+    const pageTitle =
+      pathname === "/"
+        ? "Dashboard"
+        : pathname === "/assets"
+          ? "Assets"
+          : pathname === "/retirement"
+            ? "Retirement"
+            : pathname === "/pf"
+              ? "PF"
+              : pathname === "/ppf"
+                ? "PPF"
+                : pathname === "/nps"
+                  ? "NPS"
+                  : pathname === "/cash"
+                    ? "Cash"
+                    : pathname === "/fd"
+                      ? "Fixed Deposits"
+                      : /^\/fd\/\d+$/.test(pathname)
+                        ? "FD Details"
+                        : pathname === "/transactions"
+                          ? "Transactions"
+                          : pathname === "/assets/new"
+                            ? "Add Asset"
+                            : /^\/assets\/\d+$/.test(pathname)
+                              ? "Asset Details"
+                              : /^\/assets\/\d+\/edit$/.test(pathname)
+                                ? "Edit Asset"
+                                : pathname === "/login"
+                                  ? "Sign in"
+                                  : "WealthLedger";
 
     document.title = `${pageTitle} · WealthLedger`;
   }, [pathname]);
@@ -201,10 +251,25 @@ function App() {
                   <Route path="/login" element={<Navigate to="/" replace />} />
                   <Route path="/transactions" element={<Transactions />} />
                   <Route path="/cash" element={<Cash />} />
+                  <Route path="/fd" element={<FD />} />
+                  <Route path="/fd/:id" element={<FDDetail />} />
                   <Route path="/assets" element={<AssetList />} />
                   <Route path="/assets/new" element={<AssetFormPage />} />
                   <Route path="/assets/:id" element={<AssetView />} />
                   <Route path="/assets/:id/edit" element={<AssetFormPage />} />
+                  <Route path="/retirement" element={<Retirement />} />
+                  <Route
+                    path="/pf"
+                    element={<RetirementAccountPage assetType="pf" />}
+                  />
+                  <Route
+                    path="/ppf"
+                    element={<RetirementAccountPage assetType="ppf" />}
+                  />
+                  <Route
+                    path="/nps"
+                    element={<RetirementAccountPage assetType="nps" />}
+                  />
                 </Routes>
               </div>
             </Suspense>

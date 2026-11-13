@@ -4,7 +4,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 
-from app.core.asset_types import AssetType, get_effective_category
+from app.core.asset_types import AssetType, get_effective_category, is_retirement_type
 from app.db import get_session
 from app.models import Asset, PortfolioSnapshot
 from app.schemas import (
@@ -42,7 +42,6 @@ PORTFOLIO_ASSET_TYPES = {
     AssetType.FIXED_DEPOSIT.value,
     AssetType.LIQUID_FUND.value,
     AssetType.ARBITRAGE_FUND.value,
-    AssetType.PPF.value,
 }
 
 
@@ -66,12 +65,19 @@ def summary(session: Session = Depends(get_session)) -> PortfolioSummary:
         ),
         2,
     )
+    retirement_value = round(
+        sum(
+            values[asset.id] for asset in assets if is_retirement_type(asset.asset_type)
+        ),
+        2,
+    )
 
     return PortfolioSummary(
         total_value=net_worth,
         portfolio_value=portfolio_value,
         net_worth=net_worth,
         cash_value=cash_value,
+        retirement_value=retirement_value,
         cash_asset_id=cash_asset.id,
         asset_count=len(assets),
         last_updated=datetime.now(UTC),

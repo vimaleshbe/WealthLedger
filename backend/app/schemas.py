@@ -110,6 +110,7 @@ class PortfolioSummary(BaseModel):
     portfolio_value: float
     net_worth: float
     cash_value: float
+    retirement_value: float = 0.0
     cash_asset_id: int | None = None
     currency: str = "INR"
     asset_count: int
@@ -153,6 +154,53 @@ class AssetValuation(BaseModel):
     price_fetched_at: datetime | None = None
     price_unit: str | None = None
     gold_purity: str | None = None
+
+
+class FDRead(BaseModel):
+    asset_id: int
+    name: str
+    principal: float
+    interest: float
+    withdrawals: float
+    balance: float
+    invested_value: float
+    interest_rate: float | None = None
+    start_date: str | None = None
+    tenure_months: int | None = None
+    maturity_date: str | None = None
+    days_remaining: int | None = None
+    maturity_value: float | None = None
+    entry_count: int
+
+
+class RetirementSummaryRead(BaseModel):
+    asset_id: int
+    asset_type: str
+    balance: float
+    invested_value: float
+    contributions: float
+    employee_total: float
+    employer_total: float
+    pension_total: float
+    interest_total: float
+    withdrawal_total: float
+    unclassified_total: float
+    entry_count: int
+    last_contribution_date: str | None = None
+    first_contribution_date: str | None = None
+    maturity_date: str | None = None
+    units: float = 0.0
+    latest_nav: float | None = None
+    gain: float = 0.0
+
+
+class RetirementAccountRead(RetirementSummaryRead):
+    name: str
+
+
+class RetirementListRead(BaseModel):
+    total_balance: float
+    accounts: list[RetirementAccountRead]
 
 
 class GoldRateItem(BaseModel):

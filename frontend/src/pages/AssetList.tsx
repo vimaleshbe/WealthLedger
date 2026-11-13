@@ -12,7 +12,11 @@ import AssetForm from "../components/AssetForm";
 import { AssetGridSkeleton } from "../components/PageSkeletons";
 import { useAssets, useCreateAsset, useDeleteAsset } from "../api/assets";
 import { useToast } from "../components/ui/toast";
-import { SELECTABLE_ASSET_TYPES } from "../lib/assetTypes";
+import {
+  SELECTABLE_ASSET_TYPES,
+  isFdAssetType,
+  isRetirementAssetType,
+} from "../lib/assetTypes";
 import type { Asset, AssetCreate, AssetType } from "../types";
 
 export default function AssetList() {
@@ -27,7 +31,13 @@ export default function AssetList() {
   const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null);
 
   const holdings = useMemo(
-    () => (assets ?? []).filter((asset) => asset.asset_type !== "cash"),
+    () =>
+      (assets ?? []).filter(
+        (asset) =>
+          asset.asset_type !== "cash" &&
+          !isRetirementAssetType(asset.asset_type) &&
+          !isFdAssetType(asset.asset_type),
+      ),
     [assets],
   );
 
@@ -102,7 +112,7 @@ export default function AssetList() {
           <h2 className="mt-4 text-lg font-semibold">No assets yet</h2>
           <p className="mt-1 max-w-sm text-sm text-muted-foreground">
             Add cash from the Cash tab first, then create your first stock,
-            mutual fund, PPF, gold or property.
+            mutual fund, fixed deposit, gold or property.
           </p>
           <Button className="mt-5" onClick={() => setIsModalOpen(true)}>
             <Plus className="h-4 w-4" />
@@ -213,6 +223,7 @@ export default function AssetList() {
         <AssetForm
           onSubmit={handleSubmit}
           onCancel={() => setIsModalOpen(false)}
+          isSubmitting={createAsset.isPending}
         />
       </Dialog>
 

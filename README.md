@@ -80,10 +80,14 @@ Your data remains in `backend/data/app.db` between restarts and rebuilds.
 
 - **Dashboard** — total portfolio, net worth, cash balance, CAGR and XIRR tiles
   for the portfolio, equity, and gold scopes, plus allocation and trend charts.
-- **Assets** — add or edit stocks, mutual funds, fixed deposits, liquid and
-  arbitrage funds, PPF, PF, bank balances, gold, real estate, and more.
+- **Assets** — add or edit stocks, mutual funds, liquid and arbitrage funds,
+  bank balances, gold, real estate, and more.
 - **Cash** — add or withdraw money. Purchases are paid from cash and sale
   proceeds return to it automatically.
+- **Fixed Deposits** — a dedicated page for multiple FDs, each with its own
+  principal, tenure, interest rate and interest credits.
+- **Retirement** — PF and PPF balances, plus market-linked NPS units/NAV, each
+  with its own page.
 - **Asset details** — buy, sell, and review the full transaction history.
 - **Transactions** — a single list of all entries, newest first.
 - **Sync** — refresh market prices, mutual fund NAVs, and gold rates from the header.
@@ -106,6 +110,42 @@ past purchase, enter the rate printed on the invoice. Rates are refreshed by
 the header **Sync** button and the daily scheduler. If the provider is
 unavailable, the last cached rate is kept and you can always enter the invoice
 rate manually.
+
+### Fixed deposits
+
+Fixed deposits have their own page and are no longer managed from the Assets
+tab. Add as many FDs as you need; each keeps its own principal, start date,
+tenure and annual interest rate. The page shows the maturity date and a
+projected maturity value using annual compounding.
+
+- Principal is paid from Cash when the FD is created.
+- Add Interest records each interest credit and grows the FD balance.
+- Withdraw reduces the FD balance and credits Cash.
+- FDs count in **Total Portfolio**, net worth and portfolio returns.
+
+### Retirement accounts (PF, PPF, NPS)
+
+PF, PPF and NPS each have their own page in the header. They are not part of
+the Assets tab.
+
+- **PF** — record contributions with the employee, employer and pension
+  amounts from your EPFO passbook.
+- **PPF** — a 15-year account. Add money from Cash, record the yearly interest
+  on 31 March, and withdraw back to Cash. The first contribution sets the
+  maturity date.
+- **NPS** — tracked like a mutual fund: invest and redeem units at NAV, with
+  current value = units × latest NAV.
+- All three support withdrawals. PF and PPF also support interest credits.
+
+Retirement accounts count in **net worth**, but are excluded from **Total
+Portfolio** and **XIRR**. There is no PF-wage auto-calculation, VPF field or
+passbook reconciliation.
+
+PF entries do not change the Cash balance. PPF entries always move money
+through Cash: adding money debits Cash and withdrawing credits it
+automatically. NPS investments and redemptions can optionally move Cash. If a
+PF withdrawal reaches your tracked bank/cash balance, record that separately on
+the Cash page.
 
 ## Backups
 

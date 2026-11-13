@@ -2,6 +2,7 @@ import ErrorState from "../components/ErrorState";
 import TotalValueCard from "../components/TotalValueCard";
 import NetWorthCard from "../components/NetWorthCard";
 import CashCard from "../components/CashCard";
+import RetirementCard from "../components/RetirementCard";
 import AllocationChart from "../components/AllocationChart";
 import TrendChart from "../components/TrendChart";
 import XirrTrendChart from "../components/XirrTrendChart";
@@ -78,7 +79,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <NetWorthCard netWorth={summary.net_worth} />
         <TotalValueCard
           portfolioValue={summary.portfolio_value}
@@ -88,6 +89,7 @@ export default function Dashboard() {
           cashValue={summary.cash_value}
           cashAssetId={summary.cash_asset_id}
         />
+        <RetirementCard retirementValue={summary.retirement_value} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -97,7 +99,7 @@ export default function Dashboard() {
           <ReturnCard
             percent={portfolioReturn?.percent}
             title={returnTitle("Portfolio", portfolioReturn?.metric)}
-            scope="Stocks + Mutual Funds + Gold + PPF"
+            scope="Stocks + Mutual Funds + Gold"
             badge={returnBadge(
               portfolioReturn?.metric,
               portfolioReturn?.period_days,
@@ -136,7 +138,7 @@ export default function Dashboard() {
           <ReturnCard
             percent={xirr?.xirr_percent}
             title="Portfolio XIRR"
-            scope="Stocks + Mutual Funds + Gold + PPF"
+            scope="Stocks + Mutual Funds + Gold"
           />
         )}
         {equityXirrLoading ? (

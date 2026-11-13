@@ -13,8 +13,9 @@ export default function EmptyState() {
         Welcome to your portfolio
       </h2>
       <p className="relative mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-        Start by adding money to cash. Then buy stocks, mutual funds, PPF, gold
-        or property — purchases are paid from cash and sales return to it.
+        Start by adding money to cash. Then buy stocks, mutual funds, gold or
+        property — purchases are paid from cash and sales return to it. PF, PPF
+        and NPS live in the Retirement tab.
       </p>
       <div className="relative mt-6 flex flex-wrap items-center justify-center gap-2">
         <Link to="/cash">

@@ -57,9 +57,11 @@ npm run build        # REQUIRED validation (tsc + vite)
 
 ## Domain rules
 
-- **Total Portfolio** = stocks + mutual funds + PPF.
-- **Net Worth** = all assets.
-- **XIRR** uses stocks + mutual funds + physical gold + PPF. Each entry is an outflow on its date; current market/NAV value is the inflow today. Gold is valued at the latest 22K/24K rate per gram. Scopes: portfolio, equity (non-gold funds), and gold (physical gold + gold ETFs/funds).
+- **Total Portfolio** = stocks + mutual funds + fixed deposits + liquid funds + arbitrage funds. Retirement accounts are excluded.
+- **Fixed deposits** have a dedicated `/fd` page and multiple FDs. Each FD stores principal, start date, tenure and annual interest rate in `asset.details`. Principal debits Cash, withdrawals credit Cash, and interest entries grow the FD balance. FD current value = principal + interest − withdrawals.
+- **Net Worth** = all assets, including Cash and the PF/PPF/NPS retirement balances.
+- **XIRR** uses stocks + mutual funds + physical gold. Each entry is an outflow on its date; current market/NAV value is the inflow today. Gold is valued at the latest 22K/24K rate per gram. Retirement accounts are excluded. Scopes: portfolio, equity (non-gold funds), and gold (physical gold + gold ETFs/funds).
+- **Retirement accounts** (PF, PPF, NPS) each have their own page like Cash. PF entries carry employee, employer and pension amounts. PPF is a 15-year balance account: contributions always debit Cash, withdrawals always credit Cash, interest is entered on 31 March, and maturity is 15 years after the first contribution. NPS is market-linked like a mutual fund: entries store units and NAV, current value = units × latest NAV, and interest entries are not allowed. NPS cash linkage is optional. All support withdrawals. They count in net worth only.
 - **CAGR** annualizes current market value against net invested capital from the first purchase in each scope. Holdings of one year or less show **absolute return** instead of annualizing a short period.
 - Entry history is accumulated (`date`, `value`, `units`).
 - Stock search uses Yahoo Finance; mutual fund search uses MFAPI.in.

@@ -86,8 +86,6 @@ def get_scope_assets(session: Session, scope: str) -> list[Asset]:
         AssetType.MUTUAL_FUND.value,
         AssetType.PHYSICAL_GOLD.value,
     ]
-    if scope == "portfolio":
-        asset_types.append(AssetType.PPF.value)
 
     assets = session.exec(select(Asset).where(Asset.asset_type.in_(asset_types))).all()
     if scope == "portfolio":
@@ -113,7 +111,7 @@ def get_portfolio_xirr(
 ) -> float | None:
     """Calculate XIRR for a reporting scope.
 
-    * ``portfolio`` — stocks, mutual funds, physical gold and PPF.
+    * ``portfolio`` — stocks, mutual funds and physical gold.
     * ``equity`` — stocks and non-gold mutual funds; gold ETFs/funds excluded.
     * ``gold`` — physical gold plus gold ETFs/funds.
 
@@ -121,6 +119,8 @@ def get_portfolio_xirr(
     lets the history backfill supply that day's market price per asset.
     Physical gold uses the latest cached 22K/24K rate for today's valuation,
     and falls back to its metal cost basis when no live rate is available.
+    Retirement accounts (PF, PPF, NPS) are excluded; they count in net worth
+    only.
     """
     assets = get_scope_assets(session, scope)
 
@@ -138,6 +138,9 @@ def get_portfolio_xirr(
         for entry in entries:
             entry_date = datetime.strptime(entry.date, "%Y-%m-%d").date()
             if entry_date > valuation_date:
+                continue
+            if entry.entry_type == EntryType.INTEREST:
+                # Interest grows the balance but is not an external cash flow.
                 continue
             has_flows = True
             if entry.entry_type == EntryType.SELL:

@@ -12,7 +12,12 @@ export type AssetType =
   | "physical_gold"
   | "real_estate";
 
-export type EntryType = "buy" | "sell" | "deposit" | "withdrawal";
+export type EntryType =
+  | "buy"
+  | "sell"
+  | "deposit"
+  | "withdrawal"
+  | "interest";
 
 export type ReturnScope = "portfolio" | "equity" | "gold";
 
@@ -115,6 +120,7 @@ export interface Transaction {
   entry_type: EntryType;
   affects_cash: boolean;
   cash_value?: number | null;
+  details?: Record<string, unknown> | null;
   notes?: string;
 }
 
@@ -130,6 +136,53 @@ export interface AssetValuation {
   price_fetched_at: string | null;
   price_unit?: string | null;
   gold_purity?: GoldPurity | null;
+}
+
+export interface FDSummary {
+  asset_id: number;
+  name: string;
+  principal: number;
+  interest: number;
+  withdrawals: number;
+  balance: number;
+  invested_value: number;
+  interest_rate: number | null;
+  start_date: string | null;
+  tenure_months: number | null;
+  maturity_date: string | null;
+  days_remaining: number | null;
+  maturity_value: number | null;
+  entry_count: number;
+}
+
+export interface RetirementSummary {
+  asset_id: number;
+  asset_type: AssetType;
+  balance: number;
+  invested_value: number;
+  contributions: number;
+  employee_total: number;
+  employer_total: number;
+  pension_total: number;
+  interest_total: number;
+  withdrawal_total: number;
+  unclassified_total: number;
+  entry_count: number;
+  last_contribution_date: string | null;
+  first_contribution_date: string | null;
+  maturity_date: string | null;
+  units: number;
+  latest_nav: number | null;
+  gain: number;
+}
+
+export interface RetirementAccount extends RetirementSummary {
+  name: string;
+}
+
+export interface RetirementList {
+  total_balance: number;
+  accounts: RetirementAccount[];
 }
 
 export interface XirrResponse {
@@ -151,6 +204,7 @@ export interface DashboardSummary {
   portfolio_value: number;
   net_worth: number;
   cash_value: number;
+  retirement_value: number;
   cash_asset_id: number | null;
   currency: string;
   asset_count: number;

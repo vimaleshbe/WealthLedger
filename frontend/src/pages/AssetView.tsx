@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useRef, useState } from "react";
+import { useParams, useNavigate, Link, Navigate } from "react-router-dom";
 import {
   ArrowLeft,
   Pencil,
@@ -39,6 +39,7 @@ import {
   ENTRY_TYPE_LABELS,
   getAssetTypeLabel,
   getCategoryForAssetType,
+  isFdAssetType,
 } from "../lib/assetTypes";
 import { categoryBadgeClass, formatCategory } from "../lib/categories";
 import {
@@ -86,6 +87,13 @@ export default function AssetView() {
   const [editingEntry, setEditingEntry] = useState<AssetEntry | null>(null);
   const [newEntryKind, setNewEntryKind] = useState<EntryType | null>(null);
   const [deleteEntryId, setDeleteEntryId] = useState<number | null>(null);
+  const submittingRef = useRef(false);
+
+  const isSubmitting =
+    createEntry.isPending ||
+    updateEntry.isPending ||
+    depositCash.isPending ||
+    withdrawCash.isPending;
 
   const sortedEntries = entries
     ? [...entries].sort(
@@ -94,6 +102,12 @@ export default function AssetView() {
     : [];
 
   const handleEntrySubmit = (data: EntryCreate) => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    const release = () => {
+      submittingRef.current = false;
+    };
+
     if (editingEntry) {
       updateEntry.mutate(
         { entryId: editingEntry.id, data },
@@ -104,6 +118,7 @@ export default function AssetView() {
           },
           onError: (err: Error) =>
             showError(err.message || "Failed to update entry"),
+          onSettled: release,
         },
       );
       return;
@@ -125,6 +140,7 @@ export default function AssetView() {
           },
           onError: (err: Error) =>
             showError(err.message || "Failed to update cash"),
+          onSettled: release,
         },
       );
       return;
@@ -140,6 +156,7 @@ export default function AssetView() {
         );
       },
       onError: (err: Error) => showError(err.message || "Failed to add entry"),
+      onSettled: release,
     });
   };
 
@@ -158,6 +175,19 @@ export default function AssetView() {
   if (assetLoading) return <AssetViewSkeleton />;
   if (assetError || !asset) {
     return <ErrorState onRetry={refetchAsset} />;
+  }
+
+  if (asset.asset_type === "pf") {
+    return <Navigate to="/pf" replace />;
+  }
+  if (asset.asset_type === "ppf") {
+    return <Navigate to="/ppf" replace />;
+  }
+  if (asset.asset_type === "nps") {
+    return <Navigate to="/nps" replace />;
+  }
+  if (isFdAssetType(asset.asset_type)) {
+    return <Navigate to={`/fd/${asset.id}`} replace />;
   }
 
   const category = getCategoryForAssetType(asset.asset_type);
@@ -776,6 +806,7 @@ export default function AssetView() {
           }
           onSubmit={handleEntrySubmit}
           onCancel={() => setNewEntryKind(null)}
+          isSubmitting={isSubmitting}
         />
       </Dialog>
 
@@ -801,6 +832,7 @@ export default function AssetView() {
             isEditing
             onSubmit={handleEntrySubmit}
             onCancel={() => setEditingEntry(null)}
+            isSubmitting={isSubmitting}
           />
         )}
       </Dialog>
