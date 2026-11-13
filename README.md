@@ -20,7 +20,7 @@ Everything runs on your own machine in a single Docker container.
 - Search stocks and mutual funds by name or symbol
 - Sync the latest prices and NAVs automatically or with one click
 - View allocation and portfolio trend charts
-- See portfolio, equity, and gold returns as both CAGR and XIRR
+- See portfolio, equity, and gold returns as CAGR (after one year) or absolute return, plus XIRR
 - Browse all transactions in one place
 - Sign in with your own username and password
 

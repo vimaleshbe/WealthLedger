@@ -23,7 +23,7 @@ from app.models import (
     MarketDataCache,
     XirrSnapshot,
 )
-from app.services.cagr import get_scope_cagr
+from app.services.cagr import get_scope_return
 from app.services.xirr import calculate_xirr, get_portfolio_xirr
 
 API = "/api/v1"
@@ -587,17 +587,51 @@ def test_scope_cagr_uses_market_value(auth_client):
             )
         )
         session.commit()
-        equity_cagr = get_scope_cagr(session, scope="equity")
-        gold_cagr = get_scope_cagr(session, scope="gold")
-        portfolio_cagr = get_scope_cagr(session, scope="portfolio")
+        equity_return = get_scope_return(session, scope="equity")
+        gold_return = get_scope_return(session, scope="gold")
+        portfolio_return = get_scope_return(session, scope="portfolio")
 
     years = (date.today() - date(2021, 1, 1)).days / 365.25
     expected_equity = 2 ** (1 / years) - 1
-    assert equity_cagr == pytest.approx(expected_equity, abs=1e-7)
+    assert equity_return.metric == "cagr"
+    assert equity_return.percent == pytest.approx(expected_equity, abs=1e-7)
     # The gold fund has no cached price, so it is valued at cost.
-    assert gold_cagr == pytest.approx(0.0, abs=1e-7)
-    assert portfolio_cagr is not None
-    assert portfolio_cagr < equity_cagr
+    assert gold_return.metric == "cagr"
+    assert gold_return.percent == pytest.approx(0.0, abs=1e-7)
+    assert portfolio_return.percent is not None
+    assert portfolio_return.percent < equity_return.percent
+
+
+def test_short_holding_uses_absolute_return(auth_client):
+    purchase_day = date.today() - timedelta(days=100)
+    _deposit(auth_client, purchase_day.isoformat(), 1000)
+    stock = _create_asset(auth_client, "Short Hold Stock", "stock", symbol="SHORT.NS")
+    _add_entry(
+        auth_client,
+        stock["id"],
+        purchase_day.isoformat(),
+        1000,
+        10,
+        "buy",
+    )
+
+    with Session(engine) as session:
+        session.add(
+            MarketDataCache(
+                asset_type=AssetType.STOCK,
+                symbol="SHORT.NS",
+                price=200.0,
+                source="scenario-test",
+            )
+        )
+        session.commit()
+        summary = get_scope_return(session, scope="equity")
+
+    assert summary.metric == "absolute"
+    assert summary.period_days == 100
+    assert summary.percent == pytest.approx(1.0, abs=1e-7)
+    assert summary.cagr is not None
+    assert summary.cagr > summary.percent
 
 
 def test_backdated_edit_delete_recalculates_cost_basis_cash_and_snapshots(

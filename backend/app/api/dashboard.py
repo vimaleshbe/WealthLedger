@@ -10,15 +10,15 @@ from app.models import Asset, PortfolioSnapshot
 from app.schemas import (
     AllocationItem,
     AllocationResponse,
-    CagrResponse,
     PortfolioSummary,
+    ScopeReturnResponse,
     TrendPoint,
     TrendResponse,
     XirrHistoryPoint,
     XirrHistoryResponse,
     XirrResponse,
 )
-from app.services.cagr import get_scope_cagr
+from app.services.cagr import get_scope_return
 from app.services.cash import (
     get_cash_balance,
     get_or_create_cash_asset,
@@ -197,16 +197,24 @@ def recalculate_xirr(session: Session = Depends(get_session)) -> dict[str, Any]:
     return {"status": "recalculated", "points": points}
 
 
-@router.get("/cagr", response_model=CagrResponse)
-def cagr(
+def _percent(value: float | None) -> float | None:
+    return round(value * 100, 2) if value is not None else None
+
+
+@router.get("/returns", response_model=ScopeReturnResponse)
+def returns(
     scope: Literal["portfolio", "equity", "gold"] = "portfolio",
     session: Session = Depends(get_session),
-) -> CagrResponse:
-    """Return annualized CAGR for a reporting scope."""
-    rate = get_scope_cagr(session, scope)
-    return CagrResponse(
-        cagr=rate,
-        cagr_percent=round(rate * 100, 2) if rate is not None else None,
+) -> ScopeReturnResponse:
+    """Return CAGR for long-term scopes and absolute return for short-term ones."""
+    summary = get_scope_return(session, scope)
+    return ScopeReturnResponse(
+        scope=summary.scope,
+        metric=summary.metric,
+        percent=_percent(summary.percent),
+        absolute_percent=_percent(summary.absolute),
+        cagr_percent=_percent(summary.cagr),
+        period_days=summary.period_days,
     )
 
 

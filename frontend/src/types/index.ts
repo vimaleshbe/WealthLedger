@@ -16,9 +16,13 @@ export type EntryType = "buy" | "sell" | "deposit" | "withdrawal";
 
 export type ReturnScope = "portfolio" | "equity" | "gold";
 
-export interface CagrResponse {
-  cagr: number | null;
+export interface ScopeReturnSummary {
+  scope: ReturnScope;
+  metric: "cagr" | "absolute";
+  percent: number | null;
+  absolute_percent: number | null;
   cagr_percent: number | null;
+  period_days: number | null;
 }
 
 export type GoldPurity = "22k" | "24k";

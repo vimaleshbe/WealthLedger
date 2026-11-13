@@ -175,9 +175,13 @@ class XirrResponse(BaseModel):
     xirr_percent: float | None
 
 
-class CagrResponse(BaseModel):
-    cagr: float | None
+class ScopeReturnResponse(BaseModel):
+    scope: str
+    metric: str
+    percent: float | None
+    absolute_percent: float | None
     cagr_percent: float | None
+    period_days: int | None
 
 
 class XirrHistoryPoint(BaseModel):

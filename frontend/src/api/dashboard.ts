@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./client";
 import type {
-  CagrResponse,
   DashboardSummary,
   AllocationResponse,
   ReturnScope,
+  ScopeReturnSummary,
   TrendResponse,
   XirrHistoryResponse,
   XirrResponse,
@@ -42,10 +42,10 @@ export function useDashboardXirr(scope: ReturnScope = "portfolio") {
   });
 }
 
-export function useDashboardCagr(scope: ReturnScope = "portfolio") {
-  return useQuery<CagrResponse>({
-    queryKey: ["dashboard", "cagr", scope],
-    queryFn: () => api.get(`/dashboard/cagr?scope=${scope}`),
+export function useDashboardReturns(scope: ReturnScope = "portfolio") {
+  return useQuery<ScopeReturnSummary>({
+    queryKey: ["dashboard", "returns", scope],
+    queryFn: () => api.get(`/dashboard/returns?scope=${scope}`),
   });
 }
 

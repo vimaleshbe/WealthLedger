@@ -12,11 +12,30 @@ import { Skeleton } from "../components/ui/skeleton";
 import {
   useDashboardSummary,
   useDashboardAllocation,
-  useDashboardCagr,
+  useDashboardReturns,
   useDashboardTrend,
   useDashboardXirr,
   useDashboardXirrHistory,
 } from "../api/dashboard";
+
+function holdingLabel(days: number | null | undefined): string {
+  if (days === null || days === undefined) return "";
+  if (days >= 365) return `${(days / 365.25).toFixed(1)}y`;
+  return `${days}d`;
+}
+
+function returnTitle(label: string, metric: string | undefined): string {
+  return metric === "cagr" ? `${label} CAGR` : `${label} Return`;
+}
+
+function returnBadge(
+  metric: string | undefined,
+  days: number | null | undefined,
+): string {
+  const period = holdingLabel(days);
+  const base = metric === "cagr" ? "Annualized" : "Absolute";
+  return period ? `${base} · ${period}` : base;
+}
 
 export default function Dashboard() {
   const {
@@ -32,11 +51,12 @@ export default function Dashboard() {
     useDashboardXirr("equity");
   const { data: goldXirr, isLoading: goldXirrLoading } =
     useDashboardXirr("gold");
-  const { data: cagr, isLoading: cagrLoading } = useDashboardCagr("portfolio");
-  const { data: equityCagr, isLoading: equityCagrLoading } =
-    useDashboardCagr("equity");
-  const { data: goldCagr, isLoading: goldCagrLoading } =
-    useDashboardCagr("gold");
+  const { data: portfolioReturn, isLoading: portfolioReturnLoading } =
+    useDashboardReturns("portfolio");
+  const { data: equityReturn, isLoading: equityReturnLoading } =
+    useDashboardReturns("equity");
+  const { data: goldReturn, isLoading: goldReturnLoading } =
+    useDashboardReturns("gold");
   const { data: xirrHistory, isLoading: xirrHistoryLoading } =
     useDashboardXirrHistory();
 
@@ -71,34 +91,40 @@ export default function Dashboard() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {cagrLoading ? (
+        {portfolioReturnLoading ? (
           <Skeleton className="h-full min-h-[148px] rounded-xl" />
         ) : (
           <ReturnCard
-            percent={cagr?.cagr_percent}
-            title="Portfolio CAGR"
+            percent={portfolioReturn?.percent}
+            title={returnTitle("Portfolio", portfolioReturn?.metric)}
             scope="Stocks + Mutual Funds + Gold + PPF"
-            badge="Annualized"
+            badge={returnBadge(
+              portfolioReturn?.metric,
+              portfolioReturn?.period_days,
+            )}
           />
         )}
-        {equityCagrLoading ? (
+        {equityReturnLoading ? (
           <Skeleton className="h-full min-h-[148px] rounded-xl" />
         ) : (
           <ReturnCard
-            percent={equityCagr?.cagr_percent}
-            title="Equity CAGR"
+            percent={equityReturn?.percent}
+            title={returnTitle("Equity", equityReturn?.metric)}
             scope="Stocks + Mutual Funds (excl. gold)"
-            badge="Annualized"
+            badge={returnBadge(
+              equityReturn?.metric,
+              equityReturn?.period_days,
+            )}
           />
         )}
-        {goldCagrLoading ? (
+        {goldReturnLoading ? (
           <Skeleton className="h-full min-h-[148px] rounded-xl" />
         ) : (
           <ReturnCard
-            percent={goldCagr?.cagr_percent}
-            title="Gold CAGR"
+            percent={goldReturn?.percent}
+            title={returnTitle("Gold", goldReturn?.metric)}
             scope="Physical Gold + Gold ETFs & Funds"
-            badge="Annualized"
+            badge={returnBadge(goldReturn?.metric, goldReturn?.period_days)}
           />
         )}
       </div>
