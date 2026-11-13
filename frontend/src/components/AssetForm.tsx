@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   AlertCircle,
   CalendarDays,
+  Check,
   Gem,
   IndianRupee,
   Layers3,
@@ -14,13 +15,15 @@ import { Select } from "./ui/select";
 import AssetTypeSelect from "./AssetTypeSelect";
 import { useGoldRates } from "../api/gold";
 import { useSymbolSearch } from "../api/search";
+import { formatCategory } from "../lib/categories";
+import { getAssetTypeLabel, SELECTABLE_ASSET_TYPES } from "../lib/assetTypes";
 import {
   GOLD_PURITIES,
   calculateGoldPurchase,
   goldPurityLabel,
   normalizeGoldPurity,
 } from "../lib/gold";
-import { formatCurrency, formatRelativeTime, todayISO } from "../lib/utils";
+import { cn, formatCurrency, formatRelativeTime, todayISO } from "../lib/utils";
 import type { AssetCreate, AssetType, GoldPurity } from "../types";
 
 interface AssetFormProps {
@@ -37,6 +40,7 @@ const SEARCHABLE_TYPES: AssetType[] = [
 ];
 const REAL_ESTATE_TYPE: AssetType = "real_estate";
 const GOLD_TYPE: AssetType = "physical_gold";
+const WIZARD_STEPS = ["Type", "Details", "Holding", "Review"] as const;
 
 interface InitialEntry {
   date: string;
@@ -59,6 +63,8 @@ export default function AssetForm({ initial, onSubmit, onCancel }: AssetFormProp
   const [initialUnits, setInitialUnits] = useState(initial?.initial_units?.toString() ?? "");
   const [error, setError] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [step, setStep] = useState(1);
+  const [typeChosen, setTypeChosen] = useState(isEditing);
 
   // Real estate specific fields
   const initialDetails = (initial?.details ?? {}) as Record<string, unknown>;
@@ -146,6 +152,8 @@ export default function AssetForm({ initial, onSubmit, onCancel }: AssetFormProp
   const handleAssetTypeChange = (type: AssetType) => {
     const wasGold = assetType === GOLD_TYPE;
     setAssetType(type);
+    setTypeChosen(true);
+    setError("");
     setSymbol("");
     setShowSuggestions(false);
     if (type !== REAL_ESTATE_TYPE) {
@@ -273,8 +281,57 @@ export default function AssetForm({ initial, onSubmit, onCancel }: AssetFormProp
     return { date: initialDate, value: val, units: qty };
   };
 
+  const goNext = () => {
+    setError("");
+    if (step === 1) {
+      if (!typeChosen) {
+        setError("Select an asset type to continue");
+        return;
+      }
+    } else if (step === 2) {
+      if (!name.trim()) {
+        setError("Name is required");
+        return;
+      }
+    } else if (step === 3) {
+      if (
+        assetType === REAL_ESTATE_TYPE &&
+        (price.trim() === "" || parseFloat(price) <= 0)
+      ) {
+        setError("Purchase price is required");
+        return;
+      }
+      if (wantsInitialEntry() && !validateInitialEntry()) {
+        return;
+      }
+    }
+    setStep((current) => Math.min(WIZARD_STEPS.length, current + 1));
+  };
+
+  const goBack = () => {
+    setError("");
+    setStep((current) => Math.max(1, current - 1));
+  };
+
+  const openingHoldingLabel = (() => {
+    if (!wantsInitialEntry()) return "None";
+    if (isGold) {
+      return goldBreakdown
+        ? `${formatCurrency(goldBreakdown.goldValue)} · ${initialUnits} g`
+        : "Entered on the Holding step";
+    }
+    const value = parseFloat(initialValue);
+    return !isNaN(value) && value > 0
+      ? formatCurrency(value)
+      : "Entered on the Holding step";
+  })();
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isEditing && step < WIZARD_STEPS.length) {
+      goNext();
+      return;
+    }
     if (!name.trim()) {
       setError("Name is required");
       return;
@@ -326,6 +383,49 @@ export default function AssetForm({ initial, onSubmit, onCancel }: AssetFormProp
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {!isEditing && (
+        <div className="flex items-center gap-1.5">
+          {WIZARD_STEPS.map((label, index) => {
+            const number = index + 1;
+            const active = step === number;
+            const done = step > number;
+            return (
+              <div
+                key={label}
+                className={cn(
+                  "flex items-center gap-1.5",
+                  index < WIZARD_STEPS.length - 1 && "flex-1",
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold",
+                    done
+                      ? "bg-emerald-600 text-white"
+                      : active
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {done ? <Check className="h-3.5 w-3.5" /> : number}
+                </span>
+                <span
+                  className={cn(
+                    "text-[11px] font-medium",
+                    active ? "text-foreground" : "text-muted-foreground",
+                  )}
+                >
+                  {label}
+                </span>
+                {index < WIZARD_STEPS.length - 1 && (
+                  <span className="h-px flex-1 bg-border" />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {error && (
         <div className="flex items-start gap-2.5 rounded-lg border border-destructive/20 bg-destructive/5 px-3.5 py-3 text-sm text-destructive">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -333,6 +433,44 @@ export default function AssetForm({ initial, onSubmit, onCancel }: AssetFormProp
         </div>
       )}
 
+      {!isEditing && step === 1 && (
+        <section className="space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold">What are you adding?</h3>
+            <p className="text-xs text-muted-foreground">
+              Pick a type first. You can search for a stock or fund in the next
+              step.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+            {SELECTABLE_ASSET_TYPES.map((type) => {
+              const selected = typeChosen && assetType === type.value;
+              return (
+                <button
+                  key={type.value}
+                  type="button"
+                  onClick={() => handleAssetTypeChange(type.value)}
+                  className={cn(
+                    "rounded-xl border p-3 text-left transition-colors",
+                    selected
+                      ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                      : "border-border/70 bg-card hover:border-primary/30 hover:bg-muted/40",
+                  )}
+                >
+                  <span className="block text-sm font-semibold">
+                    {type.label}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                    {formatCategory(type.category)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {(isEditing || step === 2) && (
       <section className="space-y-4">
         <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           <span className="h-1 w-1 rounded-full bg-primary" />
@@ -351,10 +489,12 @@ export default function AssetForm({ initial, onSubmit, onCancel }: AssetFormProp
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="asset_type">Asset Type</Label>
-            <AssetTypeSelect value={assetType} onChange={handleAssetTypeChange} />
-          </div>
+          {isEditing && (
+            <div className="space-y-2">
+              <Label htmlFor="asset_type">Asset Type</Label>
+              <AssetTypeSelect value={assetType} onChange={handleAssetTypeChange} />
+            </div>
+          )}
 
           {isGold && (
             <div className="space-y-2">
@@ -424,8 +564,9 @@ export default function AssetForm({ initial, onSubmit, onCancel }: AssetFormProp
           )}
         </div>
       </section>
+      )}
 
-      {!isEditing && (
+      {!isEditing && step === 3 && (
         <section className="space-y-4 rounded-xl border border-border/70 bg-muted/20 p-4">
           <div className="flex items-start gap-2.5">
             <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -701,24 +842,79 @@ export default function AssetForm({ initial, onSubmit, onCancel }: AssetFormProp
         </section>
       )}
 
-      <section className="space-y-2">
-        <Label htmlFor="notes">Notes</Label>
-        <Input
-          id="notes"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Optional notes"
-        />
-      </section>
+      {(isEditing || step === 4) && (
+        <>
+          {!isEditing && (
+            <section className="space-y-3 rounded-xl border border-border/70 bg-muted/20 p-4">
+              <p className="text-sm font-semibold">Review</p>
+              <dl className="space-y-2 text-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <dt className="text-muted-foreground">Type</dt>
+                  <dd className="text-right font-medium">
+                    {getAssetTypeLabel(assetType)}
+                  </dd>
+                </div>
+                <div className="flex items-start justify-between gap-4">
+                  <dt className="text-muted-foreground">Name</dt>
+                  <dd className="text-right font-medium">
+                    {name.trim() || "—"}
+                  </dd>
+                </div>
+                {symbol.trim() && (
+                  <div className="flex items-start justify-between gap-4">
+                    <dt className="text-muted-foreground">
+                      {assetType === "stock" ? "Symbol" : "Scheme"}
+                    </dt>
+                    <dd className="text-right font-medium">{symbol}</dd>
+                  </div>
+                )}
+                <div className="flex items-start justify-between gap-4">
+                  <dt className="text-muted-foreground">Opening holding</dt>
+                  <dd className="text-right font-medium">
+                    {openingHoldingLabel}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          )}
 
-      <div className="flex flex-col-reverse gap-2 border-t border-border/60 pt-4 sm:flex-row sm:justify-end">
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="submit">
-          {isEditing ? "Save changes" : "Create asset"}
-        </Button>
-      </div>
+          <section className="space-y-2">
+            <Label htmlFor="notes">Notes</Label>
+            <Input
+              id="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Optional notes"
+            />
+          </section>
+        </>
+      )}
+
+      {isEditing ? (
+        <div className="flex flex-col-reverse gap-2 border-t border-border/60 pt-4 sm:flex-row sm:justify-end">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit">Save changes</Button>
+        </div>
+      ) : (
+        <div className="flex flex-col-reverse gap-2 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={step === 1 ? onCancel : goBack}
+          >
+            {step === 1 ? "Cancel" : "Back"}
+          </Button>
+          {step < WIZARD_STEPS.length ? (
+            <Button type="button" onClick={goNext}>
+              Next
+            </Button>
+          ) : (
+            <Button type="submit">Create asset</Button>
+          )}
+        </div>
+      )}
     </form>
   );
 }

@@ -74,7 +74,7 @@ export default function AssetFormPage() {
         description={
           isEditing
             ? "Update the asset details. Holdings are managed from the asset page."
-            : "Add a new holding to your portfolio."
+            : "Choose a type, then add the details step by step."
         }
       />
 

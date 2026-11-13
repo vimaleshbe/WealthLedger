@@ -208,7 +208,7 @@ export default function AssetList() {
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title="Add Asset"
-        description="Track a new holding in your portfolio."
+        description="Choose a type, then add the details step by step."
       >
         <AssetForm
           onSubmit={handleSubmit}
