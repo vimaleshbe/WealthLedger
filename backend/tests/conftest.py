@@ -51,6 +51,27 @@ def auth_client(client):
     return client
 
 
+@pytest.fixture()
+def clean_database(auth_client):
+    """Empty every table in the isolated test database before a test."""
+    from sqlmodel import Session, SQLModel
+
+    from app.db import engine
+
+    url = str(engine.url)
+    if "portfolio-tests-" not in url:
+        raise RuntimeError(
+            f"Refusing to clean a database outside the pytest temp directory: {url}"
+        )
+
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        for table in reversed(SQLModel.metadata.sorted_tables):
+            session.exec(table.delete())
+        session.commit()
+    return auth_client
+
+
 def pytest_sessionfinish(session, exitstatus):
     engine.dispose()
     shutil.rmtree(_TEST_DIR, ignore_errors=True)

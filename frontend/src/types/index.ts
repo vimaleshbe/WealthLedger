@@ -1,6 +1,9 @@
 export type AssetType =
   | "stock"
   | "mutual_fund"
+  | "fixed_deposit"
+  | "liquid_fund"
+  | "arbitrage_fund"
   | "nps"
   | "ppf"
   | "cash"
@@ -11,12 +14,38 @@ export type AssetType =
 
 export type EntryType = "buy" | "sell" | "deposit" | "withdrawal";
 
+export type ReturnScope = "portfolio" | "equity" | "gold";
+
+export interface CagrResponse {
+  cagr: number | null;
+  cagr_percent: number | null;
+}
+
+export type GoldPurity = "22k" | "24k";
+
+export interface GoldRate {
+  price_per_gram: number;
+  source: string;
+  fetched_at: string;
+  stale: boolean;
+}
+
+export interface GoldRatesResponse {
+  currency: string;
+  unit: string;
+  region: string;
+  provider: string;
+  rates: Record<GoldPurity, GoldRate | null>;
+}
+
 export type Category =
   | "equity"
   | "debt"
   | "retirement"
   | "cash"
   | "real_estate"
+  | "gold"
+  | "others"
   | "commodities";
 
 export interface Asset {
@@ -26,6 +55,7 @@ export interface Asset {
   category: Category;
   symbol?: string;
   details?: Record<string, unknown>;
+  gold_purity?: GoldPurity | null;
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -40,6 +70,7 @@ export interface AssetEntry {
   entry_type: EntryType;
   affects_cash: boolean;
   cash_value?: number | null;
+  details?: Record<string, unknown> | null;
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -54,6 +85,8 @@ export interface AssetCreate {
   initial_date?: string;
   initial_value?: number;
   initial_units?: number;
+  initial_cash_value?: number;
+  initial_entry_details?: Record<string, unknown>;
 }
 
 export interface EntryCreate {
@@ -62,6 +95,8 @@ export interface EntryCreate {
   units: number;
   entry_type?: EntryType;
   affects_cash?: boolean;
+  cash_value?: number;
+  details?: Record<string, unknown>;
   notes?: string;
 }
 
@@ -89,11 +124,22 @@ export interface AssetValuation {
   latest_price: number | null;
   price_source: string | null;
   price_fetched_at: string | null;
+  price_unit?: string | null;
+  gold_purity?: GoldPurity | null;
 }
 
 export interface XirrResponse {
   xirr: number | null;
   xirr_percent: number | null;
+}
+
+export interface XirrHistoryPoint {
+  date: string;
+  xirr_percent: number | null;
+}
+
+export interface XirrHistoryResponse {
+  points: XirrHistoryPoint[];
 }
 
 export interface DashboardSummary {
@@ -125,6 +171,8 @@ export interface CashMovementCreate {
 }
 
 export interface AllocationItem {
+  asset_id?: number | null;
+  name?: string | null;
   category?: string;
   asset_type?: string;
   value: number;
@@ -132,6 +180,7 @@ export interface AllocationItem {
 }
 
 export interface AllocationResponse {
+  by_asset: AllocationItem[];
   by_category: AllocationItem[];
   by_asset_type: AllocationItem[];
 }

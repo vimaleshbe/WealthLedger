@@ -1,9 +1,12 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
+from app.core.asset_types import AssetType
+from app.core.config import settings
 from app.core.entry_types import EntryType
+from app.core.gold import purity_from_asset
 from app.core.validators import ValidationError, validate_entry_date, validate_positive
 from app.db import get_session
 from app.models import Asset, AssetEntry
@@ -14,7 +17,9 @@ from app.services.cash import (
     validate_asset_holdings,
     validate_cash_balance,
 )
+from app.services.gold import GoldDetailsError, calculate_gold_purchase
 from app.services.snapshots import recalculate_snapshots
+from app.services.xirr_history import recalculate_xirr_history
 
 router = APIRouter(tags=["entries"])
 
@@ -32,13 +37,6 @@ def _upsert_entry(
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
 
-    try:
-        validate_entry_date(data.date)
-        validate_positive(data.value, "Value")
-        validate_positive(data.units, "Units")
-    except ValidationError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
     allowed_types = _product_entry_types(asset)
     if data.entry_type not in allowed_types:
         label = "Cash entries" if is_cash_asset(asset) else "Asset entries"
@@ -50,32 +48,76 @@ def _upsert_entry(
 
     entry_type = data.entry_type
     units = 1.0 if is_cash_asset(asset) else data.units
+    entry_details = dict(data.details) if data.details else None
+    value = data.value
+    cash_value_override = data.cash_value if data.cash_value is not None else data.value
+
+    if asset.asset_type == AssetType.PHYSICAL_GOLD and not is_cash_asset(asset):
+        purity = purity_from_asset(asset).value
+        entry_details = entry_details or {}
+        entry_details.setdefault("purity", purity)
+
+        if entry_type == EntryType.BUY:
+            try:
+                breakdown = calculate_gold_purchase(units, entry_details)
+            except GoldDetailsError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            if breakdown:
+                # The purchase value used by the portfolio is the gold value
+                # only. Wastage and GST are paid from cash and recorded for
+                # transparency.
+                value = breakdown.gold_value
+                cash_value_override = breakdown.total_paid
+                entry_details = breakdown.as_entry_details()
+                entry_details["purity"] = purity
+        elif entry_type == EntryType.SELL:
+            if "gold_price_per_gram" not in entry_details and units > 0:
+                entry_details["gold_price_per_gram"] = round(value / units, 2)
+            entry_details.setdefault("gold_value", value)
+            entry_details.setdefault(
+                "total_paid",
+                cash_value_override if cash_value_override is not None else value,
+            )
+
+    try:
+        validate_entry_date(data.date)
+        validate_positive(value, "Value")
+        validate_positive(units, "Units")
+        if cash_value_override is not None:
+            validate_positive(cash_value_override, "Cash value")
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     affects_cash = (
         is_cash_asset(asset) or entry_type == EntryType.SELL or data.affects_cash
     )
-    cash_value = data.value if affects_cash else None
+    cash_value = cash_value_override if affects_cash else None
 
+    previous_date: str | None = None
     if entry_id:
         entry = session.get(AssetEntry, entry_id)
         if not entry or entry.asset_id != asset_id:
             raise HTTPException(status_code=404, detail="Entry not found")
+        previous_date = entry.date
         entry.date = data.date
-        entry.value = data.value
+        entry.value = value
         entry.units = units
         entry.entry_type = entry_type
         entry.affects_cash = affects_cash
         entry.cash_value = cash_value
+        entry.details = entry_details
         entry.notes = data.notes
         entry.updated_at = datetime.now(UTC)
     else:
         entry = AssetEntry(
             asset_id=asset_id,
             date=data.date,
-            value=data.value,
+            value=value,
             units=units,
             entry_type=entry_type,
             affects_cash=affects_cash,
             cash_value=cash_value,
+            details=entry_details,
             notes=data.notes,
         )
         session.add(entry)
@@ -96,6 +138,21 @@ def _upsert_entry(
     session.commit()
     session.refresh(entry)
     recalculate_snapshots(session)
+
+    # XIRR history points before today embed the old entry data. Rebuild the
+    # series when a backdated entry is created, edited, or moved from a past
+    # date so the trend chart stays accurate.
+    today_iso = date.today().isoformat()
+    if (
+        settings.environment != "test"
+        and not is_cash_asset(asset)
+        and (
+            data.date < today_iso
+            or (previous_date is not None and previous_date < today_iso)
+        )
+    ):
+        recalculate_xirr_history(session)
+
     return entry
 
 
@@ -103,6 +160,8 @@ def _upsert_entry(
 def list_entries(
     asset_id: int, session: Session = Depends(get_session)
 ) -> list[AssetEntry]:
+    if not session.get(Asset, asset_id):
+        raise HTTPException(status_code=404, detail="Asset not found")
     return session.exec(
         select(AssetEntry)
         .where(AssetEntry.asset_id == asset_id)
@@ -137,6 +196,8 @@ def delete_entry(
     if not entry or entry.asset_id != asset_id:
         raise HTTPException(status_code=404, detail="Entry not found")
 
+    entry_date = entry.date
+    entry_asset = session.get(Asset, asset_id)
     session.delete(entry)
     session.flush()
 
@@ -153,3 +214,11 @@ def delete_entry(
     recalculate_asset_cost_basis(session, asset_id)
     session.commit()
     recalculate_snapshots(session)
+
+    if (
+        settings.environment != "test"
+        and entry_asset is not None
+        and not is_cash_asset(entry_asset)
+        and entry_date < date.today().isoformat()
+    ):
+        recalculate_xirr_history(session)

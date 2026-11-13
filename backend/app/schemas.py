@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.core.asset_types import AssetType, Category
+from app.core.asset_types import AssetType, Category, get_category
 from app.core.entry_types import EntryType
+from app.core.gold import normalize_gold_purity, parse_gold_purity
 
 
 class AssetBase(BaseModel):
@@ -14,13 +15,28 @@ class AssetBase(BaseModel):
     notes: str | None = None
 
 
-class AssetCreate(AssetBase):
+class AssetWriteBase(AssetBase):
+    @model_validator(mode="after")
+    def validate_gold_purity(self) -> "AssetWriteBase":
+        if self.asset_type == AssetType.PHYSICAL_GOLD:
+            purity = parse_gold_purity((self.details or {}).get("purity"))
+            if purity is None:
+                raise ValueError(
+                    "Physical gold requires details.purity to be '22k' or '24k'."
+                )
+            self.details = {**(self.details or {}), "purity": purity.value}
+        return self
+
+
+class AssetCreate(AssetWriteBase):
     initial_date: str | None = None
     initial_value: float | None = Field(default=None, gt=0)
     initial_units: float | None = Field(default=None, gt=0)
+    initial_cash_value: float | None = Field(default=None, gt=0)
+    initial_entry_details: dict | None = None
 
 
-class AssetUpdate(AssetBase):
+class AssetUpdate(AssetWriteBase):
     pass
 
 
@@ -29,8 +45,19 @@ class AssetRead(AssetBase):
 
     id: int
     category: Category
+    gold_purity: str | None = None
     created_at: datetime
     updated_at: datetime
+
+    @model_validator(mode="after")
+    def normalize_category(self) -> "AssetRead":
+        # Older rows may still have retirement/commodities categories.
+        self.category = get_category(self.asset_type)
+        if self.asset_type == AssetType.PHYSICAL_GOLD:
+            self.gold_purity = normalize_gold_purity(
+                (self.details or {}).get("purity")
+            ).value
+        return self
 
 
 class AssetEntryBase(BaseModel):
@@ -39,6 +66,8 @@ class AssetEntryBase(BaseModel):
     units: float = Field(..., gt=0)
     entry_type: EntryType = EntryType.BUY
     affects_cash: bool = False
+    cash_value: float | None = Field(default=None, gt=0)
+    details: dict | None = None
     notes: str | None = None
 
 
@@ -55,7 +84,6 @@ class AssetEntryRead(AssetEntryBase):
 
     id: int
     asset_id: int
-    cash_value: float | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -89,6 +117,8 @@ class PortfolioSummary(BaseModel):
 
 
 class AllocationItem(BaseModel):
+    asset_id: int | None = None
+    name: str | None = None
     category: str | None = None
     asset_type: str | None = None
     value: float
@@ -96,6 +126,7 @@ class AllocationItem(BaseModel):
 
 
 class AllocationResponse(BaseModel):
+    by_asset: list[AllocationItem]
     by_category: list[AllocationItem]
     by_asset_type: list[AllocationItem]
 
@@ -120,11 +151,42 @@ class AssetValuation(BaseModel):
     latest_price: float | None = None
     price_source: str | None = None
     price_fetched_at: datetime | None = None
+    price_unit: str | None = None
+    gold_purity: str | None = None
+
+
+class GoldRateItem(BaseModel):
+    price_per_gram: float
+    source: str
+    fetched_at: datetime
+    stale: bool
+
+
+class GoldRatesResponse(BaseModel):
+    currency: str = "INR"
+    unit: str = "gram"
+    region: str = "Tamil Nadu"
+    provider: str = "Joyalukkas"
+    rates: dict[str, GoldRateItem | None]
 
 
 class XirrResponse(BaseModel):
     xirr: float | None
     xirr_percent: float | None
+
+
+class CagrResponse(BaseModel):
+    cagr: float | None
+    cagr_percent: float | None
+
+
+class XirrHistoryPoint(BaseModel):
+    date: str
+    xirr_percent: float | None = None
+
+
+class XirrHistoryResponse(BaseModel):
+    points: list[XirrHistoryPoint]
 
 
 class LoginRequest(BaseModel):

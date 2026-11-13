@@ -51,8 +51,8 @@ export default function TrendChart({ data }: TrendChartProps) {
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <CardTitle className="text-lg">Value Trend</CardTitle>
-            <CardDescription>Portfolio value over time</CardDescription>
+            <CardTitle className="text-lg">Net Worth Trend</CardTitle>
+            <CardDescription>Your total net worth over time</CardDescription>
           </div>
           {latest && (
             <Badge variant="outline" className="tabular-nums">

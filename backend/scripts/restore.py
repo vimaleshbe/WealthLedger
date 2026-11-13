@@ -56,6 +56,7 @@ def restore_database(path: str = "portfolio_backup.json") -> None:
                 entry_type=EntryType(str(item.get("entry_type", "buy")).lower()),
                 affects_cash=item.get("affects_cash", False),
                 cash_value=item.get("cash_value"),
+                details=item.get("details"),
                 notes=item.get("notes"),
                 created_at=parse_datetime(item["created_at"]),
                 updated_at=parse_datetime(item["updated_at"]),

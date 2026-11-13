@@ -11,9 +11,9 @@ interface CashCardProps {
 
 export default function CashCard({ cashValue, cashAssetId }: CashCardProps) {
   const card = (
-    <Card className="group relative overflow-hidden border-border/70 bg-card shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-teal-500/5">
+    <Card className="group relative flex h-full flex-col overflow-hidden border-border/70 bg-card shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-teal-500/5">
       <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-teal-500/10 blur-2xl transition-transform duration-500 group-hover:scale-125" />
-      <CardContent className="relative p-5 sm:p-6">
+      <CardContent className="relative flex flex-1 flex-col p-5 sm:p-6">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
@@ -27,7 +27,7 @@ export default function CashCard({ cashValue, cashAssetId }: CashCardProps) {
             <Banknote className="h-5 w-5" />
           </span>
         </div>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
           <Badge
             variant="outline"
             className="border-teal-500/30 bg-teal-500/10 text-teal-700 dark:text-teal-300"
@@ -48,7 +48,7 @@ export default function CashCard({ cashValue, cashAssetId }: CashCardProps) {
   if (!cashAssetId) return card;
 
   return (
-    <Link to={`/assets/${cashAssetId}`} className="block">
+    <Link to={`/assets/${cashAssetId}`} className="block h-full">
       {card}
     </Link>
   );

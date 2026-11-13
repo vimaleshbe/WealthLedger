@@ -47,6 +47,8 @@ class AssetEntry(SQLModel, table=True):
     # Actual amount that moved through cash. For a sell this is the sale
     # proceeds, while `value` holds the cost basis of the units sold.
     cash_value: float | None = None
+    # Purchase-specific breakdown such as the gold rate, wastage and GST.
+    details: dict | None = Field(default=None, sa_column=Column(JSON))
     notes: str | None = None
     created_at: datetime = Field(default_factory=now_utc)
     updated_at: datetime = Field(default_factory=now_utc)
@@ -59,6 +61,17 @@ class PortfolioSnapshot(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     date: str = Field(index=True)
     total_value: float = 0.0
+    created_at: datetime = Field(default_factory=now_utc)
+    updated_at: datetime = Field(default_factory=now_utc)
+
+
+class XirrSnapshot(SQLModel, table=True):
+    __tablename__ = "xirr_snapshot"
+    __table_args__ = (UniqueConstraint("date", name="uix_xirr_snapshot_date"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    date: str = Field(index=True)
+    xirr: float | None = None
     created_at: datetime = Field(default_factory=now_utc)
     updated_at: datetime = Field(default_factory=now_utc)
 

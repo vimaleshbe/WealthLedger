@@ -10,10 +10,10 @@ function invalidatePortfolio(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: ["cash"] });
 }
 
-export function useAssets() {
+export function useAssets(includeClosed = true) {
   return useQuery<Asset[]>({
-    queryKey: ["assets"],
-    queryFn: () => api.get("/assets"),
+    queryKey: ["assets", "list", includeClosed],
+    queryFn: () => api.get(`/assets?include_closed=${includeClosed}`),
   });
 }
 

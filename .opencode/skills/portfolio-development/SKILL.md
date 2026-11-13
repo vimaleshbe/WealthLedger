@@ -59,7 +59,8 @@ npm run build        # REQUIRED validation (tsc + vite)
 
 - **Total Portfolio** = stocks + mutual funds + PPF.
 - **Net Worth** = all assets.
-- **XIRR** uses only stocks + mutual funds. Each entry is an outflow on its date; current market/NAV value is the inflow today.
+- **XIRR** uses stocks + mutual funds + physical gold + PPF. Each entry is an outflow on its date; current market/NAV value is the inflow today. Gold is valued at the latest 22K/24K rate per gram. Scopes: portfolio, equity (non-gold funds), and gold (physical gold + gold ETFs/funds).
+- **CAGR** annualizes current market value against net invested capital from the first purchase in each scope.
 - Entry history is accumulated (`date`, `value`, `units`).
 - Stock search uses Yahoo Finance; mutual fund search uses MFAPI.in.
 - Sync is triggered by the header `SyncButton`; a scheduler also runs daily at 09:00.

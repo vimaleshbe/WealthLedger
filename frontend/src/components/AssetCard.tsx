@@ -6,6 +6,7 @@ import { Badge } from "./ui/badge";
 import { Skeleton } from "./ui/skeleton";
 import { getAssetTypeLabel, getCategoryForAssetType } from "../lib/assetTypes";
 import { categoryBadgeClass } from "../lib/categories";
+import { goldPurityLabel, normalizeGoldPurity } from "../lib/gold";
 import { useAssetValuation } from "../api/assets";
 import { cn, formatCompactCurrency, formatCurrency } from "../lib/utils";
 import type { Asset } from "../types";
@@ -22,6 +23,10 @@ export default function AssetCard({ asset, onDelete }: AssetCardProps) {
   const changePercent = valuation?.change_percent ?? 0;
   const isPositive = change >= 0;
   const category = getCategoryForAssetType(asset.asset_type);
+  const isGold = asset.asset_type === "physical_gold";
+  const goldPurity = normalizeGoldPurity(
+    asset.gold_purity ?? asset.details?.purity,
+  );
 
   return (
     <Card className="group relative flex flex-col overflow-hidden border-border/70 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5">
@@ -35,10 +40,16 @@ export default function AssetCard({ asset, onDelete }: AssetCardProps) {
               <Badge className={categoryBadgeClass(category)}>
                 {getAssetTypeLabel(asset.asset_type)}
               </Badge>
-              {asset.symbol && (
-                <span className="truncate text-xs font-medium text-muted-foreground">
-                  {asset.symbol}
+              {isGold ? (
+                <span className="text-xs font-medium text-muted-foreground">
+                  {goldPurityLabel(goldPurity)}
                 </span>
+              ) : (
+                asset.symbol && (
+                  <span className="truncate text-xs font-medium text-muted-foreground">
+                    {asset.symbol}
+                  </span>
+                )
               )}
             </div>
           </div>
@@ -145,7 +156,9 @@ export default function AssetCard({ asset, onDelete }: AssetCardProps) {
 
         {valuation?.latest_price ? (
           <p className="mt-2.5 truncate text-[11px] text-muted-foreground">
-            Latest price {formatCurrency(valuation.latest_price)}
+            {isGold ? `${goldPurityLabel(goldPurity)} rate` : "Latest price"}{" "}
+            {formatCurrency(valuation.latest_price)}
+            {isGold ? "/g" : ""}
             {valuation.price_source ? ` · ${valuation.price_source}` : ""}
           </p>
         ) : null}

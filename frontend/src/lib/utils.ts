@@ -19,11 +19,13 @@ const currencyFormatterNoDecimals = new Intl.NumberFormat("en-IN", {
 });
 
 export function formatCurrency(value: number): string {
-  return currencyFormatter.format(Number.isFinite(value) ? value : 0);
+  const safe = Number.isFinite(value) ? value : 0;
+  return currencyFormatter.format(safe === 0 ? 0 : safe);
 }
 
 export function formatCurrencyCompact(value: number): string {
-  return currencyFormatterNoDecimals.format(Number.isFinite(value) ? value : 0);
+  const safe = Number.isFinite(value) ? value : 0;
+  return currencyFormatterNoDecimals.format(safe === 0 ? 0 : safe);
 }
 
 /** Indian-style short currency: ₹71.31L, ₹1.24Cr, ₹8.5K. */
@@ -60,8 +62,9 @@ export function formatAxisCurrency(value: number): string {
 }
 
 export function formatNumber(value: number, maximumFractionDigits = 2): string {
+  const safe = Number.isFinite(value) ? value : 0;
   return new Intl.NumberFormat("en-IN", { maximumFractionDigits }).format(
-    Number.isFinite(value) ? value : 0,
+    safe === 0 ? 0 : safe,
   );
 }
 
@@ -106,4 +109,27 @@ export function todayISO(): string {
   const now = new Date();
   const offset = now.getTimezoneOffset();
   return new Date(now.getTime() - offset * 60000).toISOString().slice(0, 10);
+}
+
+/**
+ * True when an entry dated `value` should move the cash balance.
+ * Today and yesterday count as live transactions; anything older is
+ * backfilled history and must not change cash.
+ */
+export function isCashMovementDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+
+  const now = new Date();
+  const yesterday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() - 1,
+  );
+  const target = new Date(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+  );
+  return target >= yesterday;
 }

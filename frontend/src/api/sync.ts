@@ -25,6 +25,7 @@ export function useMarketSync() {
       queryClient.invalidateQueries({ queryKey: ["sync", "status"] });
       queryClient.invalidateQueries({ queryKey: ["assets"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["gold", "rates"] });
     },
   });
 }

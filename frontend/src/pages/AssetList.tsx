@@ -16,7 +16,7 @@ import { SELECTABLE_ASSET_TYPES } from "../lib/assetTypes";
 import type { Asset, AssetCreate, AssetType } from "../types";
 
 export default function AssetList() {
-  const { data: assets, isLoading, error, refetch } = useAssets();
+  const { data: assets, isLoading, error, refetch } = useAssets(false);
   const createAsset = useCreateAsset();
   const deleteAsset = useDeleteAsset();
   const { success, error: showError } = useToast();

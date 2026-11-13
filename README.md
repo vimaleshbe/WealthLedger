@@ -5,22 +5,22 @@
 WealthLedger is a simple, private, self-hosted way to keep track of your
 investments in one place.
 
-Track stocks, mutual funds, NPS, PPF, PF, cash, bank balances, physical gold,
-and real estate. See your total portfolio, net worth, cash balance, allocation,
-XIRR, and full entry history — without sending your financial data to a
-third-party service.
+Track stocks, mutual funds, fixed deposits, liquid and arbitrage funds, NPS,
+PPF, PF, cash, bank balances, physical gold, and real estate. See your total
+portfolio, net worth, cash balance, allocation, XIRR, and full entry history —
+without sending your financial data to a third-party service.
 
 Everything runs on your own machine in a single Docker container.
 
 ## What you can do
 
-- Track stocks, mutual funds, NPS, PPF, PF, cash, bank balances, gold, and real estate
+- Track stocks, mutual funds, fixed deposits, liquid/arbitrage funds, NPS, PPF, PF, cash, bank balances, gold, and real estate
 - Add cash first, then use it to buy assets; sales are credited back to cash
 - Add dated entries for each investment and keep the full history
 - Search stocks and mutual funds by name or symbol
 - Sync the latest prices and NAVs automatically or with one click
 - View allocation and portfolio trend charts
-- See XIRR for stocks and mutual funds
+- See portfolio, equity, and gold returns as both CAGR and XIRR
 - Browse all transactions in one place
 - Sign in with your own username and password
 
@@ -78,14 +78,34 @@ Your data remains in `backend/data/app.db` between restarts and rebuilds.
 
 ## Everyday use
 
-- **Dashboard** — total portfolio, net worth, cash balance, XIRR, allocation, and trend.
-- **Assets** — add or edit stocks, mutual funds, PPF, PF, bank balances, gold,
-  real estate, and more.
+- **Dashboard** — total portfolio, net worth, cash balance, CAGR and XIRR tiles
+  for the portfolio, equity, and gold scopes, plus allocation and trend charts.
+- **Assets** — add or edit stocks, mutual funds, fixed deposits, liquid and
+  arbitrage funds, PPF, PF, bank balances, gold, real estate, and more.
 - **Cash** — add or withdraw money. Purchases are paid from cash and sale
   proceeds return to it automatically.
 - **Asset details** — buy, sell, and review the full transaction history.
 - **Transactions** — a single list of all entries, newest first.
-- **Sync** — refresh market prices and mutual fund NAVs from the header.
+- **Sync** — refresh market prices, mutual fund NAVs, and gold rates from the header.
+
+### Physical gold
+
+Each physical gold asset has a purity: **22K** or **24K**. When you record a
+purchase, enter the weight in grams, the gold rate per gram, wastage %, and
+GST %. The app shows the full invoice breakdown.
+
+Only the gold value (rate × grams) is used for the portfolio. Wastage and GST
+are recorded as buying costs and are paid from cash; they never inflate the
+asset's invested or current value. XIRR uses the actual invoice total as the
+purchase outflow and the latest rate × grams as the current value.
+
+Live 22K and 24K rates are fetched from Joyalukkas' public gold-rate endpoint
+(the same board rate shown for Tamil Nadu) and cached for 12 hours. The live
+rate is used for today's purchase and for gold's current value in XIRR. For a
+past purchase, enter the rate printed on the invoice. Rates are refreshed by
+the header **Sync** button and the daily scheduler. If the provider is
+unavailable, the last cached rate is kept and you can always enter the invoice
+rate manually.
 
 ## Backups
 

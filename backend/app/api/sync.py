@@ -5,17 +5,17 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 
 from app.db import get_session
-from app.models import Asset, MarketDataCache
-from app.services.market_data import get_stale_assets, sync_asset_price
+from app.models import MarketDataCache
+from app.services.market_data import get_stale_assets, sync_all_market_data
+from app.services.xirr_history import record_xirr_snapshot
 
 router = APIRouter(prefix="/sync", tags=["sync"])
 
 
 @router.post("/market-data", status_code=202)
 def trigger_sync(session: Session = Depends(get_session)) -> dict[str, Any]:
-    assets = session.exec(select(Asset)).all()
-    for asset in assets:
-        sync_asset_price(session, asset)
+    sync_all_market_data(session)
+    record_xirr_snapshot(session)
     return {
         "status": "started",
         "started_at": datetime.now(UTC).isoformat(),

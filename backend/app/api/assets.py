@@ -4,8 +4,9 @@ from sqlmodel import Session, select
 from app.api.entries import _upsert_entry
 from app.core.asset_types import AssetType, get_category
 from app.core.entry_types import EntryType
+from app.core.gold import purity_from_asset
 from app.db import get_session
-from app.models import Asset, AssetEntry, MarketDataCache
+from app.models import Asset, AssetEntry
 from app.schemas import (
     AssetCreate,
     AssetEntryCreate,
@@ -18,16 +19,27 @@ from app.services.cash import (
     get_asset_units,
     get_cash_summary,
     is_cash_asset,
+    is_closed_asset,
     validate_cash_balance,
 )
 from app.services.snapshots import recalculate_snapshots
+from app.services.valuation import (
+    get_asset_current_value,
+    get_price_cache,
+    get_price_unit,
+)
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 
 
 @router.get("", response_model=list[AssetRead])
-def list_assets(session: Session = Depends(get_session)) -> list[Asset]:
-    return session.exec(select(Asset)).all()
+def list_assets(
+    include_closed: bool = True, session: Session = Depends(get_session)
+) -> list[Asset]:
+    assets = session.exec(select(Asset)).all()
+    if include_closed:
+        return assets
+    return [asset for asset in assets if not is_closed_asset(session, asset)]
 
 
 @router.post("", response_model=AssetRead, status_code=201)
@@ -42,7 +54,7 @@ def create_asset(data: AssetCreate, session: Session = Depends(get_session)) -> 
         name=data.name,
         asset_type=data.asset_type,
         category=get_category(data.asset_type),
-        symbol=data.symbol,
+        symbol=None if data.asset_type == AssetType.PHYSICAL_GOLD else data.symbol,
         details=data.details,
         notes=data.notes,
     )
@@ -59,6 +71,8 @@ def create_asset(data: AssetCreate, session: Session = Depends(get_session)) -> 
                 units=data.initial_units,
                 entry_type=EntryType.BUY,
                 affects_cash=True,
+                cash_value=data.initial_cash_value,
+                details=data.initial_entry_details,
             ),
         )
     else:
@@ -103,19 +117,11 @@ def get_asset_valuation(
 
     invested_value = get_asset_invested_value(session, asset_id)
     total_units = get_asset_units(session, asset_id)
-
-    cache = None
-    if asset.symbol:
-        cache = session.exec(
-            select(MarketDataCache).where(
-                MarketDataCache.asset_type == asset.asset_type,
-                MarketDataCache.symbol == asset.symbol,
-            )
-        ).first()
+    cache = get_price_cache(session, asset)
 
     latest_price = cache.price if cache else None
     current_value = (
-        round(total_units * latest_price, 2) if latest_price else invested_value
+        get_asset_current_value(session, asset) if latest_price else invested_value
     )
     change = current_value - invested_value
     change_percent = (
@@ -132,6 +138,12 @@ def get_asset_valuation(
         latest_price=latest_price,
         price_source=cache.source if cache else None,
         price_fetched_at=cache.fetched_at if cache else None,
+        price_unit=get_price_unit(asset),
+        gold_purity=(
+            purity_from_asset(asset).value
+            if asset.asset_type == AssetType.PHYSICAL_GOLD
+            else None
+        ),
     )
 
 
@@ -150,7 +162,7 @@ def update_asset(
     asset.name = data.name
     asset.asset_type = data.asset_type
     asset.category = get_category(data.asset_type)
-    asset.symbol = data.symbol
+    asset.symbol = None if data.asset_type == AssetType.PHYSICAL_GOLD else data.symbol
     asset.details = data.details
     asset.notes = data.notes
     session.add(asset)

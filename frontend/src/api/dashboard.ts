@@ -1,6 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./client";
-import type { DashboardSummary, AllocationResponse, TrendResponse, XirrResponse } from "../types";
+import type {
+  CagrResponse,
+  DashboardSummary,
+  AllocationResponse,
+  ReturnScope,
+  TrendResponse,
+  XirrHistoryResponse,
+  XirrResponse,
+} from "../types";
 
 export function useDashboardSummary() {
   return useQuery<DashboardSummary>({
@@ -27,9 +35,23 @@ export function useDashboardTrend(startDate?: string, endDate?: string) {
   });
 }
 
-export function useDashboardXirr() {
+export function useDashboardXirr(scope: ReturnScope = "portfolio") {
   return useQuery<XirrResponse>({
-    queryKey: ["dashboard", "xirr"],
-    queryFn: () => api.get("/dashboard/xirr"),
+    queryKey: ["dashboard", "xirr", scope],
+    queryFn: () => api.get(`/dashboard/xirr?scope=${scope}`),
+  });
+}
+
+export function useDashboardCagr(scope: ReturnScope = "portfolio") {
+  return useQuery<CagrResponse>({
+    queryKey: ["dashboard", "cagr", scope],
+    queryFn: () => api.get(`/dashboard/cagr?scope=${scope}`),
+  });
+}
+
+export function useDashboardXirrHistory() {
+  return useQuery<XirrHistoryResponse>({
+    queryKey: ["dashboard", "xirr", "history"],
+    queryFn: () => api.get("/dashboard/xirr/history"),
   });
 }

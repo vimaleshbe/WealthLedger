@@ -3,12 +3,15 @@ import type { AssetType, Category, EntryType } from "../types";
 export const ASSET_TYPES: { value: AssetType; label: string; category: Category }[] = [
   { value: "stock", label: "Stock", category: "equity" },
   { value: "mutual_fund", label: "Mutual Fund", category: "equity" },
-  { value: "nps", label: "NPS", category: "retirement" },
-  { value: "ppf", label: "PPF", category: "retirement" },
+  { value: "fixed_deposit", label: "Fixed Deposit", category: "debt" },
+  { value: "liquid_fund", label: "Liquid Fund", category: "debt" },
+  { value: "arbitrage_fund", label: "Arbitrage Fund", category: "debt" },
+  { value: "nps", label: "NPS", category: "others" },
+  { value: "ppf", label: "PPF", category: "debt" },
+  { value: "pf", label: "PF", category: "debt" },
   { value: "cash", label: "Cash", category: "cash" },
   { value: "bank_balance", label: "Bank Balance", category: "cash" },
-  { value: "pf", label: "PF", category: "retirement" },
-  { value: "physical_gold", label: "Physical Gold", category: "commodities" },
+  { value: "physical_gold", label: "Physical Gold", category: "gold" },
   { value: "real_estate", label: "Real Estate", category: "real_estate" },
 ];
 

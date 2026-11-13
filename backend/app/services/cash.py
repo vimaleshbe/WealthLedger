@@ -90,7 +90,9 @@ def get_cash_balance(session: Session) -> float:
     entries = session.exec(
         select(AssetEntry).where(AssetEntry.affects_cash == True)  # noqa: E712
     ).all()
-    return round(sum(entry_cash_effect(entry) for entry in entries), 2)
+    balance = round(sum(entry_cash_effect(entry) for entry in entries), 2)
+    # Avoid returning -0.0 when sub-paisa rounding leaves a tiny deficit.
+    return 0.0 if balance == 0 else balance
 
 
 def get_cash_totals(session: Session) -> dict[str, float]:
@@ -152,6 +154,29 @@ def get_asset_units(session: Session, asset_id: int) -> float:
         elif entry.entry_type == EntryType.SELL:
             total -= entry.units
     return round(max(total, 0.0), 6)
+
+
+def is_closed_asset(session: Session, asset: Asset) -> bool:
+    """Return True when an asset has entries but no units left.
+
+    Assets created without an initial holding have no entries and stay
+    visible so they can be edited. A fully sold holding is considered closed
+    and should not appear in active lists or counts.
+    """
+    if is_cash_asset(asset):
+        return False
+
+    entries = get_asset_entries(session, asset.id)
+    if not entries:
+        return False
+
+    units = 0.0
+    for entry in entries:
+        if entry.entry_type == EntryType.BUY:
+            units += entry.units
+        elif entry.entry_type == EntryType.SELL:
+            units -= entry.units
+    return units <= UNITS_EPSILON
 
 
 def recalculate_asset_cost_basis(session: Session, asset_id: int) -> None:

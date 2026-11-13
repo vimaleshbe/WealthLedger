@@ -5,30 +5,34 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from sqlmodel import Session, select
+from sqlmodel import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import assets, auth, cash, dashboard, entries, search, sync
+from app.api import assets, auth, cash, dashboard, entries, gold, search, sync
 from app.core.config import settings
 from app.core.middleware import SecurityMiddleware
 from app.core.security import validate_auth_config
 from app.db import engine, init_db
-from app.models import Asset
-from app.services.market_data import sync_asset_price
+from app.services.market_data import sync_all_market_data
+from app.services.xirr_history import ensure_xirr_history, record_xirr_snapshot
 
 scheduler = BackgroundScheduler()
 
 
 def _daily_sync() -> None:
     with Session(engine) as session:
-        for asset in session.exec(select(Asset)).all():
-            sync_asset_price(session, asset)
+        sync_all_market_data(session)
+        record_xirr_snapshot(session)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     validate_auth_config()
     init_db()
+    with Session(engine) as session:
+        if settings.environment != "test":
+            ensure_xirr_history(session)
+        record_xirr_snapshot(session)
     scheduler.add_job(_daily_sync, "cron", hour=9, minute=0)
     scheduler.start()
     yield
@@ -65,6 +69,7 @@ app.include_router(assets.router, prefix="/api/v1")
 app.include_router(entries.router, prefix="/api/v1")
 app.include_router(cash.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
+app.include_router(gold.router, prefix="/api/v1")
 app.include_router(sync.router, prefix="/api/v1")
 app.include_router(search.router, prefix="/api/v1")
 

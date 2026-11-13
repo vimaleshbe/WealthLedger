@@ -1,22 +1,21 @@
-import { Clock } from "lucide-react";
-import PageHeader from "../components/PageHeader";
 import ErrorState from "../components/ErrorState";
 import TotalValueCard from "../components/TotalValueCard";
 import NetWorthCard from "../components/NetWorthCard";
 import CashCard from "../components/CashCard";
 import AllocationChart from "../components/AllocationChart";
 import TrendChart from "../components/TrendChart";
+import XirrTrendChart from "../components/XirrTrendChart";
 import EmptyState from "../components/EmptyState";
-import XirrCard from "../components/XirrCard";
+import ReturnCard from "../components/ReturnCard";
 import { DashboardSkeleton } from "../components/PageSkeletons";
-import { Badge } from "../components/ui/badge";
 import { Skeleton } from "../components/ui/skeleton";
-import { formatRelativeTime } from "../lib/utils";
 import {
   useDashboardSummary,
   useDashboardAllocation,
+  useDashboardCagr,
   useDashboardTrend,
   useDashboardXirr,
+  useDashboardXirrHistory,
 } from "../api/dashboard";
 
 export default function Dashboard() {
@@ -28,7 +27,18 @@ export default function Dashboard() {
   } = useDashboardSummary();
   const { data: allocation, isLoading: allocationLoading } = useDashboardAllocation();
   const { data: trend, isLoading: trendLoading } = useDashboardTrend();
-  const { data: xirr, isLoading: xirrLoading } = useDashboardXirr();
+  const { data: xirr, isLoading: xirrLoading } = useDashboardXirr("portfolio");
+  const { data: equityXirr, isLoading: equityXirrLoading } =
+    useDashboardXirr("equity");
+  const { data: goldXirr, isLoading: goldXirrLoading } =
+    useDashboardXirr("gold");
+  const { data: cagr, isLoading: cagrLoading } = useDashboardCagr("portfolio");
+  const { data: equityCagr, isLoading: equityCagrLoading } =
+    useDashboardCagr("equity");
+  const { data: goldCagr, isLoading: goldCagrLoading } =
+    useDashboardCagr("gold");
+  const { data: xirrHistory, isLoading: xirrHistoryLoading } =
+    useDashboardXirrHistory();
 
   if (summaryLoading) {
     return <DashboardSkeleton />;
@@ -41,10 +51,6 @@ export default function Dashboard() {
   if (!summary || (summary.asset_count === 0 && summary.cash_value === 0)) {
     return (
       <div className="space-y-6">
-        <PageHeader
-          title="Dashboard"
-          description="A clear view of your portfolio performance"
-        />
         <EmptyState />
       </div>
     );
@@ -52,30 +58,78 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Dashboard"
-        description="A clear view of your portfolio performance"
-      >
-        <Badge variant="outline" className="gap-1.5 py-1">
-          <Clock className="h-3.5 w-3.5 text-primary" />
-          Updated {formatRelativeTime(summary.last_updated)}
-        </Badge>
-      </PageHeader>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <NetWorthCard netWorth={summary.net_worth} />
         <TotalValueCard
           portfolioValue={summary.portfolio_value}
           assetCount={summary.asset_count}
         />
-        <NetWorthCard netWorth={summary.net_worth} />
         <CashCard
           cashValue={summary.cash_value}
           cashAssetId={summary.cash_asset_id}
         />
-        {xirrLoading ? (
-          <Skeleton className="h-[148px] rounded-xl" />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {cagrLoading ? (
+          <Skeleton className="h-full min-h-[148px] rounded-xl" />
         ) : (
-          <XirrCard xirrPercent={xirr?.xirr_percent} />
+          <ReturnCard
+            percent={cagr?.cagr_percent}
+            title="Portfolio CAGR"
+            scope="Stocks + Mutual Funds + Gold + PPF"
+            badge="Annualized"
+          />
+        )}
+        {equityCagrLoading ? (
+          <Skeleton className="h-full min-h-[148px] rounded-xl" />
+        ) : (
+          <ReturnCard
+            percent={equityCagr?.cagr_percent}
+            title="Equity CAGR"
+            scope="Stocks + Mutual Funds (excl. gold)"
+            badge="Annualized"
+          />
+        )}
+        {goldCagrLoading ? (
+          <Skeleton className="h-full min-h-[148px] rounded-xl" />
+        ) : (
+          <ReturnCard
+            percent={goldCagr?.cagr_percent}
+            title="Gold CAGR"
+            scope="Physical Gold + Gold ETFs & Funds"
+            badge="Annualized"
+          />
+        )}
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {xirrLoading ? (
+          <Skeleton className="h-full min-h-[148px] rounded-xl" />
+        ) : (
+          <ReturnCard
+            percent={xirr?.xirr_percent}
+            title="Portfolio XIRR"
+            scope="Stocks + Mutual Funds + Gold + PPF"
+          />
+        )}
+        {equityXirrLoading ? (
+          <Skeleton className="h-full min-h-[148px] rounded-xl" />
+        ) : (
+          <ReturnCard
+            percent={equityXirr?.xirr_percent}
+            title="Equity XIRR"
+            scope="Stocks + Mutual Funds (excl. gold)"
+          />
+        )}
+        {goldXirrLoading ? (
+          <Skeleton className="h-full min-h-[148px] rounded-xl" />
+        ) : (
+          <ReturnCard
+            percent={goldXirr?.xirr_percent}
+            title="Gold XIRR"
+            scope="Physical Gold + Gold ETFs & Funds"
+          />
         )}
       </div>
 
@@ -99,6 +153,11 @@ export default function Dashboard() {
           )
         )}
       </div>
+
+      <XirrTrendChart
+        data={xirrHistory?.points ?? []}
+        isLoading={xirrHistoryLoading}
+      />
     </div>
   );
 }

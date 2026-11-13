@@ -8,15 +8,41 @@ import {
 import { PieChart as PieIcon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
-import {
-  categoryColor,
-  formatCategory,
-} from "../lib/categories";
+import { categoryColor, formatCategory } from "../lib/categories";
+import { getAssetTypeLabel } from "../lib/assetTypes";
 import { formatCompactCurrency, formatCurrency } from "../lib/utils";
-import type { AllocationItem } from "../types";
+import type { AllocationItem, AssetType } from "../types";
+
+const CHART_PALETTE = [
+  "#4f46e5",
+  "#10b981",
+  "#f59e0b",
+  "#0891b2",
+  "#8b5cf6",
+  "#f43f5e",
+  "#0ea5e9",
+  "#84cc16",
+  "#d946ef",
+  "#64748b",
+  "#14b8a6",
+  "#f97316",
+];
+
+interface ChartItem extends AllocationItem {
+  label: string;
+  color: string;
+}
+
+function itemLabel(item: AllocationItem): string {
+  if (item.name) return item.name;
+  if (item.asset_type) {
+    return getAssetTypeLabel(item.asset_type as AssetType);
+  }
+  return formatCategory(item.category);
+}
 
 interface TooltipItem {
-  payload?: AllocationItem;
+  payload?: ChartItem;
 }
 
 function AllocationTooltip({
@@ -30,16 +56,14 @@ function AllocationTooltip({
   const item = payload[0]?.payload;
   if (!item) return null;
 
-  const name = item.category ?? item.asset_type ?? "Other";
-
   return (
     <div className="rounded-lg border border-border/70 bg-card px-3 py-2 shadow-xl">
       <div className="flex items-center gap-2">
         <span
           className="h-2.5 w-2.5 rounded-full"
-          style={{ backgroundColor: categoryColor(name) }}
+          style={{ backgroundColor: item.color }}
         />
-        <span className="text-xs font-semibold">{formatCategory(name)}</span>
+        <span className="text-xs font-semibold">{item.label}</span>
       </div>
       <p className="mt-1 text-sm font-bold tabular-nums">
         {formatCurrency(item.value)}
@@ -60,7 +84,14 @@ export default function AllocationChart({
   data,
   title = "Allocation",
 }: AllocationChartProps) {
-  const total = data.reduce((sum, item) => sum + item.value, 0);
+  const chartData: ChartItem[] = data.map((item, index) => ({
+    ...item,
+    label: itemLabel(item),
+    color: item.category
+      ? categoryColor(item.category)
+      : CHART_PALETTE[index % CHART_PALETTE.length],
+  }));
+  const total = chartData.reduce((sum, item) => sum + item.value, 0);
 
   return (
     <Card className="flex h-full flex-col">
@@ -70,15 +101,15 @@ export default function AllocationChart({
             <CardTitle className="text-lg">{title}</CardTitle>
             <CardDescription>How your portfolio is distributed</CardDescription>
           </div>
-          <Badge variant="outline">{data.length} categories</Badge>
+          <Badge variant="outline">{chartData.length} categories</Badge>
         </div>
       </CardHeader>
       <CardContent className="flex-1">
-        {data.length === 0 ? (
+        {chartData.length === 0 || total <= 0 ? (
           <div className="flex h-[280px] flex-col items-center justify-center gap-2 text-center">
             <PieIcon className="h-8 w-8 text-muted-foreground/60" />
             <p className="text-sm text-muted-foreground">
-              Allocation appears once you add assets.
+              Allocation appears once you add assets or cash.
             </p>
           </div>
         ) : (
@@ -87,9 +118,9 @@ export default function AllocationChart({
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={data}
+                    data={chartData}
                     dataKey="value"
-                    nameKey="category"
+                    nameKey="label"
                     cx="50%"
                     cy="50%"
                     innerRadius={64}
@@ -99,19 +130,19 @@ export default function AllocationChart({
                     stroke="none"
                     isAnimationActive={false}
                   >
-                    {data.map((item, index) => {
-                      const key = item.category ?? item.asset_type ?? String(index);
-                      return (
-                        <Cell key={`cell-${key}`} fill={categoryColor(key)} />
-                      );
-                    })}
+                    {chartData.map((item, index) => (
+                      <Cell
+                        key={`cell-${item.label}-${index}`}
+                        fill={item.color}
+                      />
+                    ))}
                   </Pie>
                   <Tooltip content={<AllocationTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground">
-                  Total
+                  Net worth
                 </span>
                 <span className="mt-0.5 text-lg font-bold tracking-tight">
                   {formatCompactCurrency(total)}
@@ -119,29 +150,29 @@ export default function AllocationChart({
               </div>
             </div>
 
-            <ul className="space-y-2.5">
-              {data.map((item, index) => {
-                const key = item.category ?? item.asset_type ?? String(index);
-                return (
-                  <li key={`legend-${key}`} className="flex items-center gap-2.5">
-                    <span
-                      className="h-2.5 w-2.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: categoryColor(key) }}
-                    />
-                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                      {formatCategory(key)}
+            <ul className="max-h-[240px] space-y-2.5 overflow-y-auto pr-1">
+              {chartData.map((item, index) => (
+                <li
+                  key={`legend-${item.label}-${index}`}
+                  className="flex items-center gap-2.5"
+                >
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: item.color }}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                    {item.label}
+                  </span>
+                  <span className="flex flex-col items-end leading-tight">
+                    <span className="text-sm font-semibold tabular-nums">
+                      {formatCompactCurrency(item.value)}
                     </span>
-                    <span className="flex flex-col items-end leading-tight">
-                      <span className="text-sm font-semibold tabular-nums">
-                        {formatCompactCurrency(item.value)}
-                      </span>
-                      <span className="text-[11px] text-muted-foreground tabular-nums">
-                        {item.percentage.toFixed(1)}%
-                      </span>
+                    <span className="text-[11px] text-muted-foreground tabular-nums">
+                      {item.percentage.toFixed(1)}%
                     </span>
-                  </li>
-                );
-              })}
+                  </span>
+                </li>
+              ))}
             </ul>
           </div>
         )}

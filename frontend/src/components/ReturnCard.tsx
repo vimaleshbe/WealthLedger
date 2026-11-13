@@ -3,23 +3,31 @@ import { Card, CardContent } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { cn } from "../lib/utils";
 
-interface XirrCardProps {
-  xirrPercent: number | null | undefined;
+interface ReturnCardProps {
+  percent: number | null | undefined;
+  title: string;
+  scope: string;
+  badge?: string;
 }
 
-export default function XirrCard({ xirrPercent }: XirrCardProps) {
-  const isNeutral = xirrPercent === null || xirrPercent === undefined;
-  const isPositive = !isNeutral && xirrPercent >= 0;
-  const isNegative = !isNeutral && xirrPercent < 0;
+export default function ReturnCard({
+  percent,
+  title,
+  scope,
+  badge = "Money-weighted",
+}: ReturnCardProps) {
+  const isNeutral = percent === null || percent === undefined;
+  const isPositive = !isNeutral && percent >= 0;
+  const isNegative = !isNeutral && percent < 0;
 
   const displayValue = isNeutral
     ? "N/A"
-    : `${isPositive ? "+" : ""}${xirrPercent.toFixed(2)}%`;
+    : `${isPositive ? "+" : ""}${percent.toFixed(2)}%`;
 
   const Icon = isPositive ? TrendingUp : isNegative ? TrendingDown : Minus;
 
   return (
-    <Card className="group relative overflow-hidden border-border/70 bg-card shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-amber-500/5">
+    <Card className="group relative flex h-full flex-col overflow-hidden border-border/70 bg-card shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-amber-500/5">
       <div
         className={cn(
           "pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full blur-2xl transition-transform duration-500 group-hover:scale-125",
@@ -30,11 +38,11 @@ export default function XirrCard({ xirrPercent }: XirrCardProps) {
               : "bg-slate-500/10",
         )}
       />
-      <CardContent className="relative p-5 sm:p-6">
+      <CardContent className="relative flex flex-1 flex-col p-5 sm:p-6">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-              Portfolio XIRR
+              {title}
             </p>
             <p
               className={cn(
@@ -62,11 +70,9 @@ export default function XirrCard({ xirrPercent }: XirrCardProps) {
             <Icon className="h-5 w-5" />
           </span>
         </div>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <Badge variant="outline">Money-weighted</Badge>
-          <span className="text-xs text-muted-foreground">
-            Stocks + Mutual Funds only
-          </span>
+        <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
+          <Badge variant="outline">{badge}</Badge>
+          <span className="text-xs text-muted-foreground">{scope}</span>
         </div>
       </CardContent>
     </Card>

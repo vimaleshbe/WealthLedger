@@ -49,6 +49,8 @@ def _migrate_asset_entry_table() -> None:
             )
         if "cash_value" not in columns:
             conn.exec_driver_sql("ALTER TABLE asset_entry ADD COLUMN cash_value FLOAT")
+        if "details" not in columns:
+            conn.exec_driver_sql("ALTER TABLE asset_entry ADD COLUMN details JSON")
 
         if "uix_asset_date" not in table_sql:
             return
@@ -62,9 +64,9 @@ def _migrate_asset_entry_table() -> None:
         conn.exec_driver_sql(
             "INSERT INTO asset_entry "
             "(id, asset_id, date, value, units, entry_type, affects_cash, "
-            "cash_value, notes, created_at, updated_at) "
+            "cash_value, details, notes, created_at, updated_at) "
             "SELECT id, asset_id, date, value, units, entry_type, affects_cash, "
-            "cash_value, notes, created_at, updated_at "
+            "cash_value, details, notes, created_at, updated_at "
             "FROM asset_entry_legacy"
         )
         conn.exec_driver_sql("DROP TABLE asset_entry_legacy")

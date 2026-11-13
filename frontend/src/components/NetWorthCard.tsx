@@ -9,9 +9,9 @@ interface NetWorthCardProps {
 
 export default function NetWorthCard({ netWorth }: NetWorthCardProps) {
   return (
-    <Card className="group relative overflow-hidden border-border/70 bg-card shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-emerald-500/5">
+    <Card className="group relative flex h-full flex-col overflow-hidden border-border/70 bg-card shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-emerald-500/5">
       <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-emerald-500/10 blur-2xl transition-transform duration-500 group-hover:scale-125" />
-      <CardContent className="relative p-5 sm:p-6">
+      <CardContent className="relative flex flex-1 flex-col p-5 sm:p-6">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
@@ -25,7 +25,7 @@ export default function NetWorthCard({ netWorth }: NetWorthCardProps) {
             <PiggyBank className="h-5 w-5" />
           </span>
         </div>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
           <Badge variant="success">All assets</Badge>
           <span className="text-xs text-muted-foreground">
             Everything you own

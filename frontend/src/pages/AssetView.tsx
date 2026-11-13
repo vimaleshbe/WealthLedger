@@ -12,6 +12,7 @@ import {
   Tag,
   StickyNote,
   Hash,
+  Gem,
   ArrowDownLeft,
   ArrowUpRight,
 } from "lucide-react";
@@ -41,10 +42,17 @@ import {
 } from "../lib/assetTypes";
 import { categoryBadgeClass, formatCategory } from "../lib/categories";
 import {
+  asGoldEntryDetails,
+  goldPurityLabel,
+  goldPurityMark,
+  normalizeGoldPurity,
+} from "../lib/gold";
+import {
   cn,
   formatCurrency,
   formatDate,
   formatNumber,
+  formatRelativeTime,
 } from "../lib/utils";
 import type { AssetEntry, EntryCreate, EntryType } from "../types";
 
@@ -69,6 +77,10 @@ export default function AssetView() {
   const depositCash = useDepositCash();
   const withdrawCash = useWithdrawCash();
   const isCash = asset?.asset_type === "cash";
+  const isGold = asset?.asset_type === "physical_gold";
+  const goldPurity = normalizeGoldPurity(
+    asset?.gold_purity ?? asset?.details?.purity,
+  );
   const { data: cashSummary } = useCashSummary();
 
   const [editingEntry, setEditingEntry] = useState<AssetEntry | null>(null);
@@ -331,28 +343,41 @@ export default function AssetView() {
                     formatCurrency(valuation?.invested_value ?? 0)
                   )}
                 </p>
+                {isGold && (
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    Gold value only
+                  </p>
+                )}
               </div>
               <div>
                 <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  Total Units
+                  {isGold ? "Total Weight" : "Total Units"}
                 </p>
                 <p className="mt-1 text-base font-semibold tabular-nums">
                   {valuationLoading ? (
                     <Skeleton className="h-5 w-20" />
                   ) : (
-                    formatNumber(valuation?.total_units ?? 0, 3)
+                    <>
+                      {formatNumber(valuation?.total_units ?? 0, 3)}
+                      {isGold ? " g" : ""}
+                    </>
                   )}
                 </p>
               </div>
               <div>
                 <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  Latest Price
+                  {isGold
+                    ? `${goldPurityLabel(goldPurity)} Rate`
+                    : "Latest Price"}
                 </p>
                 <p className="mt-1 text-base font-semibold tabular-nums">
                   {valuationLoading ? (
                     <Skeleton className="h-5 w-24" />
                   ) : valuation?.latest_price ? (
-                    formatCurrency(valuation.latest_price)
+                    <>
+                      {formatCurrency(valuation.latest_price)}
+                      {isGold ? "/g" : ""}
+                    </>
                   ) : (
                     "—"
                   )}
@@ -360,6 +385,9 @@ export default function AssetView() {
                 {valuation?.price_source && (
                   <p className="mt-0.5 text-[11px] text-muted-foreground">
                     {valuation.price_source}
+                    {valuation.price_fetched_at
+                      ? ` · ${formatRelativeTime(valuation.price_fetched_at)}`
+                      : ""}
                   </p>
                 )}
               </div>
@@ -368,82 +396,104 @@ export default function AssetView() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
-            <div className="flex items-start gap-3">
-              <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                <Layers className="h-4 w-4" />
-              </span>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  Type
-                </dt>
-                <dd className="mt-0.5 font-medium">
-                  {getAssetTypeLabel(asset.asset_type)}
-                </dd>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3">
-              <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                <Tag className="h-4 w-4" />
-              </span>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  Category
-                </dt>
-                <dd className="mt-0.5 font-medium capitalize">{formatCategory(asset.category)}</dd>
-              </div>
-            </div>
-
-            {asset.symbol && (
+      {!isCash && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Details</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
               <div className="flex items-start gap-3">
                 <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                  <Hash className="h-4 w-4" />
+                  <Layers className="h-4 w-4" />
                 </span>
                 <div>
                   <dt className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                    Symbol
+                    Type
                   </dt>
-                  <dd className="mt-0.5 font-medium">{asset.symbol}</dd>
+                  <dd className="mt-0.5 font-medium">
+                    {getAssetTypeLabel(asset.asset_type)}
+                  </dd>
                 </div>
               </div>
-            )}
 
-            <div className="flex items-start gap-3">
-              <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                <CalendarDays className="h-4 w-4" />
-              </span>
-              <div>
-                <dt className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  Added on
-                </dt>
-                <dd className="mt-0.5 font-medium">{formatDate(asset.created_at)}</dd>
-              </div>
-            </div>
+              {isGold && (
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600">
+                    <Gem className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <dt className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                      Purity
+                    </dt>
+                    <dd className="mt-0.5 font-medium">
+                      {goldPurityLabel(goldPurity)} ({goldPurityMark(goldPurity)})
+                    </dd>
+                  </div>
+                </div>
+              )}
 
-            {asset.notes && (
-              <div className="flex items-start gap-3 sm:col-span-2">
+              <div className="flex items-start gap-3">
                 <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                  <StickyNote className="h-4 w-4" />
+                  <Tag className="h-4 w-4" />
                 </span>
                 <div>
                   <dt className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                    Notes
+                    Category
                   </dt>
-                  <dd className="mt-0.5 font-medium">{asset.notes}</dd>
+                  <dd className="mt-0.5 font-medium capitalize">
+                    {formatCategory(category)}
+                  </dd>
                 </div>
               </div>
-            )}
-          </dl>
-        </CardContent>
-      </Card>
 
-      <Card>
+              {asset.symbol && (
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                    <Hash className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <dt className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                      Symbol
+                    </dt>
+                    <dd className="mt-0.5 font-medium">{asset.symbol}</dd>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                  <CalendarDays className="h-4 w-4" />
+                </span>
+                <div>
+                  <dt className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Added on
+                  </dt>
+                  <dd className="mt-0.5 font-medium">
+                    {formatDate(asset.created_at)}
+                  </dd>
+                </div>
+              </div>
+
+              {asset.notes && (
+                <div className="flex items-start gap-3 sm:col-span-2">
+                  <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                    <StickyNote className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <dt className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                      Notes
+                    </dt>
+                    <dd className="mt-0.5 font-medium">{asset.notes}</dd>
+                  </div>
+                </div>
+              )}
+            </dl>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className={cn(isCash && "overflow-hidden")}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <div>
             <CardTitle className="text-lg">
@@ -487,15 +537,105 @@ export default function AssetView() {
                 {isCash ? "Add Cash" : "Buy Asset"}
               </Button>
             </div>
+          ) : isCash ? (
+            <div className="-mx-5 -mb-5 overflow-x-auto border-t border-border/60 sm:-mx-6 sm:-mb-6">
+              <table className="w-full min-w-[640px] text-sm">
+                <thead className="bg-muted/50">
+                  <tr className="border-b border-border/60 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                    <th className="px-4 py-3 font-semibold sm:px-5">Date</th>
+                    <th className="px-4 py-3 font-semibold sm:px-5">
+                      Activity
+                    </th>
+                    <th className="px-4 py-3 font-semibold sm:px-5">Notes</th>
+                    <th className="px-4 py-3 text-right font-semibold sm:px-5">
+                      Amount
+                    </th>
+                    <th className="px-4 py-3 text-right font-semibold sm:px-5">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {sortedEntries.map((entry) => {
+                    const isDeposit = entry.entry_type === "deposit";
+                    return (
+                      <tr
+                        key={entry.id}
+                        className="group transition-colors hover:bg-muted/30"
+                      >
+                        <td className="whitespace-nowrap px-4 py-3.5 sm:px-5">
+                          <div className="flex items-center gap-2.5">
+                            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                              <CalendarDays className="h-4 w-4" />
+                            </span>
+                            <p className="font-medium">
+                              {formatDate(entry.date)}
+                            </p>
+                          </div>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3.5 sm:px-5">
+                          <Badge
+                            className={cn(
+                              "border-transparent text-[11px]",
+                              isDeposit
+                                ? "bg-teal-100 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300"
+                                : "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300",
+                            )}
+                          >
+                            {ENTRY_TYPE_LABELS[entry.entry_type]}
+                          </Badge>
+                        </td>
+                        <td className="max-w-[240px] truncate px-4 py-3.5 text-muted-foreground sm:px-5">
+                          {entry.notes || "—"}
+                        </td>
+                        <td
+                          className={cn(
+                            "whitespace-nowrap px-4 py-3.5 text-right font-semibold tabular-nums sm:px-5",
+                            isDeposit
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : "text-rose-600 dark:text-rose-400",
+                          )}
+                        >
+                          {isDeposit ? "+" : "−"}
+                          {formatCurrency(entry.value)}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3.5 text-right sm:px-5">
+                          <div className="flex justify-end gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => setEditingEntry(entry)}
+                              aria-label="Edit entry"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={() => setDeleteEntryId(entry.id)}
+                              aria-label="Delete entry"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <ol className="space-y-0">
               {sortedEntries.map((entry, index) => {
-                const isSellEntry = entry.entry_type === "sell";
                 const isCashIn =
                   entry.entry_type === "sell" || entry.entry_type === "deposit";
-                const amount = isSellEntry
-                  ? (entry.cash_value ?? entry.value)
-                  : entry.value;
+                const goldEntry = isGold
+                  ? asGoldEntryDetails(entry.details)
+                  : null;
+                const amount = entry.cash_value ?? entry.value;
                 return (
                   <li key={entry.id} className="group flex gap-3">
                     <div className="flex flex-col items-center pt-2">
@@ -545,9 +685,22 @@ export default function AssetView() {
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           {formatDate(entry.date)}
                           {!isCash &&
-                            ` · ${formatNumber(entry.units, 3)} units`}
+                            ` · ${formatNumber(entry.units, 3)}${isGold ? " g" : " units"}`}
                           {entry.notes ? ` · ${entry.notes}` : ""}
                         </p>
+                        {goldEntry?.gold_price_per_gram != null && (
+                          <p className="mt-0.5 text-[11px] text-muted-foreground">
+                            {formatCurrency(goldEntry.gold_price_per_gram)}/g
+                            {goldEntry.gold_value != null &&
+                              ` · ${entry.entry_type === "sell" ? "sale value" : "gold value"} ${formatCurrency(goldEntry.gold_value)}`}
+                            {entry.entry_type === "buy" &&
+                              goldEntry.wastage_amount != null &&
+                              ` · wastage ${formatCurrency(goldEntry.wastage_amount)}`}
+                            {entry.entry_type === "buy" &&
+                              goldEntry.gst_amount != null &&
+                              ` · GST ${formatCurrency(goldEntry.gst_amount)}`}
+                          </p>
+                        )}
                       </div>
                       <div className="flex shrink-0 gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
                         <Button
@@ -583,25 +736,36 @@ export default function AssetView() {
         onClose={() => setNewEntryKind(null)}
         title={
           newEntryKind === "sell"
-            ? "Sell Asset"
+            ? isGold
+              ? "Sell Gold"
+              : "Sell Asset"
             : newEntryKind === "deposit"
               ? "Add Cash"
               : newEntryKind === "withdrawal"
                 ? "Withdraw Cash"
-                : "Buy Asset"
+                : isGold
+                  ? "Buy Gold"
+                  : "Buy Asset"
         }
         description={
           newEntryKind === "sell"
-            ? "Record a sale. The proceeds move into cash."
+            ? isGold
+              ? "Record a sale by weight. The proceeds move into cash."
+              : "Record a sale. The proceeds move into cash."
             : newEntryKind === "deposit"
               ? "Move money into your cash balance."
               : newEntryKind === "withdrawal"
                 ? "Move money out of your cash balance."
-                : "Record a purchase. The amount is paid from cash."
+                : isGold
+                  ? "Enter the invoice rate, weight, wastage and GST. Only the gold value is counted in the portfolio."
+                  : "Record a purchase. The amount is paid from cash."
         }
       >
         <EntryForm
           kind={newEntryKind ?? "buy"}
+          assetType={asset.asset_type}
+          goldPurity={goldPurity}
+          goldRatePerGram={valuation?.latest_price}
           availableUnits={
             newEntryKind === "sell" ? valuation?.total_units : undefined
           }
@@ -626,6 +790,9 @@ export default function AssetView() {
             key={editingEntry.id}
             initial={editingEntry}
             kind={editingEntry.entry_type}
+            assetType={asset.asset_type}
+            goldPurity={goldPurity}
+            goldRatePerGram={valuation?.latest_price}
             availableUnits={
               editingEntry.entry_type === "sell"
                 ? (valuation?.total_units ?? 0) + editingEntry.units

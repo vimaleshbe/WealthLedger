@@ -1,26 +1,37 @@
 from datetime import UTC, date, datetime
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 
-from app.core.asset_types import AssetType
+from app.core.asset_types import AssetType, get_effective_category
 from app.db import get_session
 from app.models import Asset, PortfolioSnapshot
 from app.schemas import (
     AllocationItem,
     AllocationResponse,
+    CagrResponse,
     PortfolioSummary,
     TrendPoint,
     TrendResponse,
+    XirrHistoryPoint,
+    XirrHistoryResponse,
     XirrResponse,
 )
+from app.services.cagr import get_scope_cagr
 from app.services.cash import (
-    get_asset_invested_value,
     get_cash_balance,
     get_or_create_cash_asset,
     is_cash_asset,
+    is_closed_asset,
 )
+from app.services.valuation import get_asset_portfolio_value
 from app.services.xirr import get_portfolio_xirr
+from app.services.xirr_history import (
+    get_xirr_history,
+    recalculate_xirr_history,
+    record_xirr_snapshot,
+)
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -28,6 +39,9 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 PORTFOLIO_ASSET_TYPES = {
     AssetType.STOCK.value,
     AssetType.MUTUAL_FUND.value,
+    AssetType.FIXED_DEPOSIT.value,
+    AssetType.LIQUID_FUND.value,
+    AssetType.ARBITRAGE_FUND.value,
     AssetType.PPF.value,
 }
 
@@ -36,17 +50,17 @@ PORTFOLIO_ASSET_TYPES = {
 def summary(session: Session = Depends(get_session)) -> PortfolioSummary:
     cash_asset = get_or_create_cash_asset(session)
     assets = [
-        asset for asset in session.exec(select(Asset)).all() if not is_cash_asset(asset)
+        asset
+        for asset in session.exec(select(Asset)).all()
+        if not is_cash_asset(asset) and not is_closed_asset(session, asset)
     ]
     cash_value = get_cash_balance(session)
 
-    invested = {
-        asset.id: get_asset_invested_value(session, asset.id) for asset in assets
-    }
-    net_worth = round(sum(invested.values()) + cash_value, 2)
+    values = {asset.id: get_asset_portfolio_value(session, asset) for asset in assets}
+    net_worth = round(sum(values.values()) + cash_value, 2)
     portfolio_value = round(
         sum(
-            invested[asset.id]
+            values[asset.id]
             for asset in assets
             if asset.asset_type.value in PORTFOLIO_ASSET_TYPES
         ),
@@ -71,12 +85,16 @@ def allocation(session: Session = Depends(get_session)) -> AllocationResponse:
     ]
     category_values: dict[str, float] = {}
     type_values: dict[str, float] = {}
+    asset_values: list[tuple[Asset, float]] = []
     total = 0.0
 
     for asset in assets:
-        value = get_asset_invested_value(session, asset.id)
-        category_values[asset.category.value] = (
-            category_values.get(asset.category.value, 0.0) + value
+        value = get_asset_portfolio_value(session, asset)
+        category = get_effective_category(asset.asset_type, asset.name, asset.symbol)
+        if value > 0:
+            asset_values.append((asset, value))
+        category_values[category.value] = (
+            category_values.get(category.value, 0.0) + value
         )
         type_values[asset.asset_type.value] = (
             type_values.get(asset.asset_type.value, 0.0) + value
@@ -84,23 +102,51 @@ def allocation(session: Session = Depends(get_session)) -> AllocationResponse:
         total += value
 
     cash_value = get_cash_balance(session)
-    if cash_value:
-        category_values["cash"] = category_values.get("cash", 0.0) + cash_value
-        type_values[AssetType.CASH.value] = cash_value
-        total += cash_value
+    category_values["cash"] = category_values.get("cash", 0.0) + cash_value
+    type_values[AssetType.CASH.value] = cash_value
+    total += cash_value
+
+    def percentage(value: float) -> float:
+        return round((value / total) * 100, 2) if total else 0.0
 
     def to_items(mapping: dict[str, float], key_name: str) -> list[AllocationItem]:
         return [
             AllocationItem(
                 **{key_name: key},
                 value=value,
-                percentage=round((value / total) * 100, 2) if total else 0.0,
+                percentage=percentage(value),
             )
             for key, value in sorted(mapping.items(), key=lambda x: x[1], reverse=True)
             if value > 0
         ]
 
+    by_asset = [
+        AllocationItem(
+            asset_id=asset.id,
+            name=asset.name,
+            category=get_effective_category(
+                asset.asset_type, asset.name, asset.symbol
+            ).value,
+            asset_type=asset.asset_type.value,
+            value=value,
+            percentage=percentage(value),
+        )
+        for asset, value in asset_values
+    ]
+    if cash_value > 0:
+        by_asset.append(
+            AllocationItem(
+                name="Cash",
+                category="cash",
+                asset_type=AssetType.CASH.value,
+                value=cash_value,
+                percentage=percentage(cash_value),
+            )
+        )
+    by_asset.sort(key=lambda item: item.value, reverse=True)
+
     return AllocationResponse(
+        by_asset=by_asset,
         by_category=to_items(category_values, "category"),
         by_asset_type=to_items(type_values, "asset_type"),
     )
@@ -127,10 +173,55 @@ def trend(
     )
 
 
+@router.get("/xirr/history", response_model=XirrHistoryResponse)
+def xirr_history(session: Session = Depends(get_session)) -> XirrHistoryResponse:
+    """Return one XIRR point per recorded day."""
+    record_xirr_snapshot(session)
+    return XirrHistoryResponse(
+        points=[
+            XirrHistoryPoint(
+                date=snapshot.date,
+                xirr_percent=(
+                    round(snapshot.xirr * 100, 2) if snapshot.xirr is not None else None
+                ),
+            )
+            for snapshot in get_xirr_history(session)
+        ]
+    )
+
+
+@router.post("/xirr/history/recalculate", status_code=202)
+def recalculate_xirr(session: Session = Depends(get_session)) -> dict[str, Any]:
+    """Rebuild all XIRR history points from the current entries."""
+    points = recalculate_xirr_history(session)
+    return {"status": "recalculated", "points": points}
+
+
+@router.get("/cagr", response_model=CagrResponse)
+def cagr(
+    scope: Literal["portfolio", "equity", "gold"] = "portfolio",
+    session: Session = Depends(get_session),
+) -> CagrResponse:
+    """Return annualized CAGR for a reporting scope."""
+    rate = get_scope_cagr(session, scope)
+    return CagrResponse(
+        cagr=rate,
+        cagr_percent=round(rate * 100, 2) if rate is not None else None,
+    )
+
+
 @router.get("/xirr", response_model=XirrResponse)
-def xirr(session: Session = Depends(get_session)) -> XirrResponse:
-    """Return portfolio XIRR excluding real estate assets."""
-    rate = get_portfolio_xirr(session)
+def xirr(
+    scope: Literal["portfolio", "equity", "gold"] = "portfolio",
+    session: Session = Depends(get_session),
+) -> XirrResponse:
+    """Return portfolio, equity, or gold XIRR.
+
+    ``portfolio`` includes stocks, mutual funds, physical gold and PPF.
+    ``equity`` excludes gold ETFs/funds, and ``gold`` covers only the gold
+    sleeve (physical gold + gold ETFs/funds).
+    """
+    rate = get_portfolio_xirr(session, scope=scope)
     return XirrResponse(
         xirr=rate,
         xirr_percent=round(rate * 100, 2) if rate is not None else None,
